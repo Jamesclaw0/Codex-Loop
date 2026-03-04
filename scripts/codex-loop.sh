@@ -1,4 +1,5 @@
 #!/bin/bash
+# 🛡️ Codex-Verified: c2117ed (2026-03-05)
 # 🛡️ Codex-Loop (Lvl 13 Quality Guard: Ping-Pong Loop for Code)
 # Muse-Core 的強制跨模型程式碼防護鎖 (內建 5 次熔斷直接給 Code 機制)
 
@@ -78,8 +79,32 @@ else
     DIFF_CMD="git diff --cached"
 fi
 
-echo "📄 偵測到以下程式碼變更，準備發送給 Codex:"
+echo "📄 偵測到以下程式碼變更，準備進行本地預檢與 Codex 審查:"
 echo "$FILES" | awk '{print "  - "$0}'
+
+# [Optimization] 本地 Linter 先行 (使用 ruff 或 py_compile)，節省 Token
+# 使用 Heredoc 餵給 while 以確保支援 Bash 3.2 且 exit 1 能正常終止主腳本
+while read -r f; do
+    if [ -n "$f" ] && [[ "$f" == *.py ]] && [ -f "$f" ]; then
+        if command -v ruff > /dev/null 2>&1; then
+            if ! ruff check "$f" --quiet; then
+                echo "❌ [LINT ERROR] $f 未通過本地 Ruff 檢查，請先修正語法錯誤再執行審查。"
+                exit 1
+            fi
+        elif command -v uv > /dev/null 2>&1; then
+             # [P1 Fix] 容錯處理：如果 uv 因網路或其他原因失敗，發出警告但允許繼續，不直接跳出
+             if ! uv run --with ruff ruff check "$f" --quiet > /dev/null 2>&1; then
+                # 重新檢查是否真的是語法錯誤還是 uv 故障
+                if uv run --with ruff ruff --version > /dev/null 2>&1; then
+                    echo "❌ [LINT ERROR] $f 未通過本地 Ruff 檢查 (via uv)，請先修正語法錯誤。"
+                    exit 1
+                else
+                    echo "⚠️  [WARN] 本地預檢失敗 (uv 異常)，將直接切換至 Codex 遠端審核..."
+                fi
+             fi
+        fi
+    fi
+done <<< "$FILES"
 
 # 實際呼叫 Codex API 進行 Review
 codex review $UNCOMMITTED_FLAG > "$REPORT_FILE" 2>&1
@@ -91,8 +116,8 @@ if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
     exit 1
 fi
 
-# [P1 Fix] 檢查審查結果 (必須明確含有 VERDICT: PASS 且不含有任何 [P0-9] 或 [Bug] 標記)
-if grep -qi "VERDICT: PASS" "$REPORT_FILE" && ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE"; then
+# [P1 Fix] 檢查審查結果 (更具魯棒性的判定：含有通過關鍵字 且 絕對不含有 P 級標記)
+if grep -qiE "VERDICT: PASS|no clear, actionable bugs|did not find any discrete, actionable regressions" "$REPORT_FILE" && ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceeded|API Error" "$REPORT_FILE"; then
     echo "🎉 [PASSED] Codex 審查通過！準備蓋章..."
     
     COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
@@ -117,14 +142,15 @@ else
     
     echo "⚠️  [REJECTED - EXIT 1] Codex 發現潛在問題/Bug，或是未達到品質要求！"
     
-    if [ "$FAIL_COUNT" -ge 5 ]; then
-        echo "🚨 =============== [STRIKE 5: 啟動終極指導模式] ==============="
+    # [Optimization] Strike 5 -> 3 熔斷
+    if [ "$FAIL_COUNT" -ge 3 ]; then
+        echo "🚨 =============== [STRIKE 3: 啟動終極指導模式] ==============="
         echo "⚠️ 您已經連續被退回 $FAIL_COUNT 次！正在強制要求 Codex 給出完美解答..."
         # 終極解法：使用 Unix {} 複合指令將 Prompt 與 Diff 拼接成單一流，安全餵給 codex exec 的 stdin (-)
         if [ "$BASE_COMMIT" = "staged" ]; then
-            { echo "This is the 5th failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff --cached; } | codex exec -
+            { echo "This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff --cached; } | codex exec -
         else
-            { echo "This is the 5th failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff "$BASE_COMMIT"; } | codex exec -
+            { echo "This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff "$BASE_COMMIT"; } | codex exec -
         fi
         echo "0" > "$COUNT_FILE" # 重置計數器以防無限累積
         echo "👆 ================================================================="
@@ -134,7 +160,7 @@ else
         echo "👇 =============== [REVIEW REPORT] ==============="
         cat "$REPORT_FILE"
         echo "👆 ================================================"
-        echo "❌ 任務被 Codex-Loop 鎖死！(這是第 $FAIL_COUNT/5 次退回)。"
+        echo "❌ 任務被 Codex-Loop 鎖死！(這是第 $FAIL_COUNT/3 次退回)。"
         echo "👉 系統要求您 (Agent) 必須閱讀上方建議修改程式碼，並再次呼叫 \`codex-loop\` 直到 PASS 才能繼續執行下去。"
         exit 1
     fi
