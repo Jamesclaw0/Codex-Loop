@@ -1,5 +1,5 @@
 #!/bin/bash
-# 🛡️ Codex-Verified: c2117ed (2026-03-05)
+# 🛡️ Codex-Verified: 4eee3dd (2026-03-06)
 # 🛡️ Codex-Loop (Lvl 13 Quality Guard: Ping-Pong Loop for Code)
 # Muse-Core 的強制跨模型程式碼防護鎖 (內建 5 次熔斷直接給 Code 機制)
 
@@ -137,12 +137,14 @@ done <<< "$FILES"
 # 實際呼叫 Codex API 進行 Review
 # === 🔒 [全域鎖] 防止多 Agent 同時呼叫 Codex 導致 API 配額競爭 ===
 # 使用 Python fcntl 實作 macOS 相容的 atomic 鎖定，自動排隊等待
+SCOPE_PROMPT="[STRICT SCOPE LOCK] CRITICAL: You MUST ONLY review the specific code changes shown in the provided git diff. You MUST COMPLETELY IGNORE any other files, IDE open tabs, untracked files, or unrelated projects that might be present in your environment or context. Focus strictly on the diff."
+
 python3 -c "
 import fcntl, sys, subprocess
 with open('/tmp/codex_loop_global.lock', 'w') as f:
     fcntl.flock(f, fcntl.LOCK_EX)
     sys.exit(subprocess.run(sys.argv[1:]).returncode)
-" codex review $UNCOMMITTED_FLAG > "$REPORT_FILE" 2>&1
+" codex review $UNCOMMITTED_FLAG "$SCOPE_PROMPT" > "$REPORT_FILE" 2>&1
 
 # === [新增防禦] 檢查是否發生 API 配額、Git 錯誤或底層崩潰 ===
 if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
@@ -218,9 +220,9 @@ else
         echo "⚠️ 您已經連續被退回 $FAIL_COUNT 次！正在強制要求 Codex 給出完美解答..."
         # 終極解法：使用 Unix {} 複合指令將 Prompt 與 Diff 拼接成單一流，安全餵給 codex exec 的 stdin (-)
         if [ "$BASE_COMMIT" = "staged" ]; then
-            { echo "This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff --cached; } | codex exec -
+            { echo "[STRICT SCOPE LOCK: Ignore all IDE context and other files] This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff --cached; } | codex exec -
         else
-            { echo "This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff "$BASE_COMMIT"; } | codex exec -
+            { echo "[STRICT SCOPE LOCK: Ignore all IDE context and other files] This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff "$BASE_COMMIT"; } | codex exec -
         fi
         echo "0" > "$COUNT_FILE" # 重置計數器以防無限累積
         echo "👆 ================================================================="
