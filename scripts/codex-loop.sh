@@ -142,7 +142,40 @@ else
     
     echo "⚠️  [REJECTED - EXIT 1] Codex 發現潛在問題/Bug，或是未達到品質要求！"
     
-    # [Optimization] Strike 5 -> 3 熔斷
+    # === 🔀 智慧分拆功能 (Smart File Splitter) ===
+    # 從 Codex 報告中解析被點名的問題檔案 (格式: → scripts/foo.py:42-50)
+    if [ "$BASE_COMMIT" = "staged" ]; then
+        FLAGGED_BASENAMES=$(grep -oiE "\b[a-zA-Z0-9_-]+\.(py|sh|js|ts)\b" "$REPORT_FILE" | sort -u || true)
+        CLEAN_FILES=""
+        DIRTY_FILES=""
+        while read -r f; do
+            [ -z "$f" ] && continue
+            BASE=$(basename "$f")
+            if echo "$FLAGGED_BASENAMES" | grep -qF "$BASE"; then
+                DIRTY_FILES="$DIRTY_FILES$f"$'\n'
+            else
+                CLEAN_FILES="$CLEAN_FILES$f"$'\n'
+            fi
+        done <<< "$FILES"
+
+        if [ -n "$CLEAN_FILES" ]; then
+            echo ""
+            echo "✅ [智慧分拆] 以下檔案 Codex 未點名，提前蓋章："
+            COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
+            echo "$CLEAN_FILES" | while read -r f; do
+                [ -z "$f" ] || [ ! -f "$f" ] && continue
+                echo "  🏅 $f"
+                python3 "$STAMPER" "$f" "$COMMIT_ID" || true
+                git add "$f"
+            done
+            echo ""
+            echo "⚠️  以下問題檔案將繼續迭代："
+            echo "$DIRTY_FILES" | while read -r ff; do [ -n "$ff" ] && echo "  ❌ $ff"; done
+            echo ""
+        fi
+    fi
+    # =========================================
+
     if [ "$FAIL_COUNT" -ge 3 ]; then
         echo "🚨 =============== [STRIKE 3: 啟動終極指導模式] ==============="
         echo "⚠️ 您已經連續被退回 $FAIL_COUNT 次！正在強制要求 Codex 給出完美解答..."
