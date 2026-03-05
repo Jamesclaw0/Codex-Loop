@@ -19,6 +19,8 @@
   - **API 全域排隊鎖**：內建 Python `fcntl` 全域鎖，多個 Agent 同時呼叫審查時會自動排隊，防止 API 配額爆掉（Rate Limit Error）。
   - **檔案防撞鎖相容**：完美相容於 `codex-worker` 兵營管理系統，防止多 Agent 開發同一個 Repo 時的檔案覆寫衝突。
 - **本地 Linter 支援 (Local Linter)**：內建 Python `ruff` 與 `py_compile` 語法預檢，在呼叫昂貴 LLM 前先過濾基礎錯誤。
+- **🛡️ 品質驗證蓋章 (Codex-Verified)**：[NEW] 審查通過後自動在檔案頂部注入隱藏的品質章節，作為最終合併的信任憑證。
+- **👁️ 潛意識觀察者 (Subconscious Observer)**：[NEW] 自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
 ### 🛠️ 安裝與使用
@@ -57,6 +59,11 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
 3. **沉澱寫入**：Agent 將這句反省主動寫入專案根目錄的 `.codex_lessons.md`。
 4. **祖傳經驗**：下次在同專案開啟新任務時，Agent 的 Context Prep 理當會優先讀到這本錯題簿，直接避開曾經踩過的雷區！
 
+### 🧩 生態系相容性 (Ecosystem Compatibility)
+`codex-loop` 的設計理念是「極度解耦」，它與以下工具完美聯動：
+- **Git Worktree / 並行開發**：當您派出多個「分身 Agent」同時在隔離環境工作時，`codex-loop` 是唯一的入關閘門，確保任何分身的產出都符合全局品質標準。
+- **Codex-Worker (兵營管理)**：內建 API 排隊鎖，完美支援多 Agent 同時爭搶 API 配額的極端場景。
+
 ---
 
 ## 🇺🇸 English Version
@@ -72,6 +79,8 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
 - **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
 - **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
 - **Verification Stamping**: Automatically injects `Codex-Verified` stamps into files that pass the gate.
+- **🛡️ Quality Gate Stamping**: [NEW] Injects a verification hash into successful files, serving as a trust certificate for merges.
+- **👁️ Subconscious Observer**: [NEW] Automatically records PASS/FAIL development fragments and distills lessons via background daemons to give agents memory and prevent repeated mistakes.
 
 ### 🛠️ Installation & Usage
 
@@ -107,6 +116,11 @@ By adding the above instruction to your Agent, your project gains the ability to
 2. **Self-Reflection**: When it finally fixes the code, gets a `PASS (Exit 0)`, and prepares to report success, it is forced to summarize the mistake it just made and the fix logic in 1-2 sentences.
 3. **Knowledge Settling**: The Agent actively writes this reflection into `.codex_lessons.md` at the project root.
 4. **Ancestral Experience**: The next time a new task starts in the same project, the Agent will read this mistake book first, allowing it to bypass previously encountered pitfalls entirely!
+
+### 🧩 Ecosystem Compatibility
+`codex-loop` is built to be modular and works architecturally with:
+- **Git Worktree / Parallel Dev**: When spawning multiple "Sub-Agents" in isolated worktrees, `codex-loop` acts as the mandatory gatekeeper for every single contribution.
+- **Codex-Worker (Orchestration)**: Built-in global API queuing locks prevent rate-limit crashes during intensive multi-agent development.
 
 ---
 Built by [Sir] & [Muse-Core]
