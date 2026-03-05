@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# 🛡️ Codex-Verified: d943e31 (2026-03-06)
 import os
 import sys
 import subprocess
@@ -78,13 +77,6 @@ def process_subtask(
         return WorkerResult(i, sub, None, None, f"Worktree fail: {res.stderr.strip()}")
 
     try:
-        # Add .fix_log to gitignore to avoid future merge conflicts
-        gitignore = Path(work_path) / ".gitignore"
-        existing = gitignore.read_text() if gitignore.exists() else ""
-        if ".fix_log" not in existing:
-            with open(gitignore, "a") as f:
-                f.write("\n.fix_log\n")
-
         with open(Path(work_path) / ".fix_log", "w") as f:
             f.write(f"Task: {task_desc}\nSubtask: {sub}\n")
 
@@ -96,6 +88,24 @@ def process_subtask(
         if check.returncode != 0:
             cleanup_worker(project_root, work_path, branch_name)
             return WorkerResult(i, sub, None, None, "Codex-Loop rejected")
+
+        # 把自動產生的 .fix_log 從 staging 區拔除，避免污染 commit 與產生 merge conflict
+        run_cmd(["git", "rm", "--cached", ".fix_log", "--ignore-unmatch"], cwd=work_path)
+
+        # 🛡️ 空提交防護：如果拔除 .fix_log 後沒有任何 staged 變更，代表這是一個空任務
+        staged_check = run_cmd(
+            ["git", "diff", "--staged", "--name-only", "--diff-filter=ACMRD"],
+            cwd=work_path
+        )
+        staged_files = staged_check.stdout.splitlines()
+
+        if not staged_files:
+            cleanup_worker(project_root, work_path, branch_name)
+            return WorkerResult(
+                i, sub, None, None,
+                "空提交防護觸發：Staged 變更為零。沒有實質任務寫入。"
+                " 請確保 Agent 實際進入 Worktree 完成修復任務後再執行 parallel_fix 收割。"
+            )
 
         commit = run_cmd(
             ["git", "commit", "-m", f"feat(parallel): {sub} for {task_desc}"],
