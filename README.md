@@ -43,6 +43,7 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
   1. 執行 `git add <修改的檔案>`
   2. 執行全域指令 `codex-loop` (或您的絕對路徑)
 - **[退回處理]**: 如果 codex-loop 輸出為 Exit 1 甚至出現錯誤，Agent **絕對不准**向使用者報告任務完成！必須自行閱讀終端機中的評估建議，修改程式碼後，再重複這兩步送審，直到獲得 PASS。
+- **[紀律沉澱]**: 只要本次開發曾被退回，在最終獲得 PASS 準備結案時，Agent **必須強制**以 1 句話總結犯錯與修復邏輯，主動寫入專案根目錄的 `.codex_lessons.md` 作為未來的錯題本防坑指南。
 ```
 
 ---
@@ -86,6 +87,7 @@ To create a virtually unbreakable code quality pipeline, add this strict instruc
   1. `git add <modified_files>`
   2. Run the global command `codex-loop`
 - **[Rejection Handling]**: If codex-loop outputs `Exit 1` or any error, you are **STRICTLY FORBIDDEN** from reporting task completion to the user! You MUST read the evaluation report in the terminal, modify the code yourself, and repeat these two steps to submit for review again until you get `PASS (Exit 0)`.
+- **[Continuous Learning]**: If you were rejected during this task, upon finally receiving `PASS`, you MUST summarize your mistake and the fix in 1 sentence and aggressively append it to `.codex_lessons.md` in the project root to serve as a future anti-pitfall guide.
 ```
 
 ---
