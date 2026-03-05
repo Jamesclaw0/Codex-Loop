@@ -46,6 +46,13 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
 - **[紀律沉澱]**: 只要本次開發曾被退回，在最終獲得 PASS 準備結案時，Agent **必須強制**以 1 句話總結犯錯與修復邏輯，主動寫入專案根目錄的 `.codex_lessons.md` 作為未來的錯題本防坑指南。
 ```
 
+#### 🌱 紀律沉澱機制 (Continuous Learning)
+當您將上述指令加入 Agent 後，整個專案將具備自我學習能力，打破 AI 的「金魚腦」，其運作分為 4 個階段：
+1. **觸發條件**：如果 Agent 在本次開發中，曾經被 `codex-loop` 退件（收到 `Exit 1` 或 Linter 錯誤）。
+2. **自我反省**：當它終於改對，拿到 `PASS (Exit 0)` 準備報喜時，會被強制要求用 1-2 句話總結自己剛才犯的錯與修復邏輯（例如：「在使用 FastAPI 時，CORS 中介軟體必須在路由宣告前掛載」）。
+3. **沉澱寫入**：Agent 將這句反省主動寫入專案根目錄的 `.codex_lessons.md`。
+4. **祖傳經驗**：下次在同專案開啟新任務時，Agent 的 Context Prep 理當會優先讀到這本錯題簿，直接避開曾經踩過的雷區！
+
 ---
 
 ## 🇺🇸 English Version
@@ -89,6 +96,13 @@ To create a virtually unbreakable code quality pipeline, add this strict instruc
 - **[Rejection Handling]**: If codex-loop outputs `Exit 1` or any error, you are **STRICTLY FORBIDDEN** from reporting task completion to the user! You MUST read the evaluation report in the terminal, modify the code yourself, and repeat these two steps to submit for review again until you get `PASS (Exit 0)`.
 - **[Continuous Learning]**: If you were rejected during this task, upon finally receiving `PASS`, you MUST summarize your mistake and the fix in 1 sentence and aggressively append it to `.codex_lessons.md` in the project root to serve as a future anti-pitfall guide.
 ```
+
+#### 🌱 Continuous Learning Mechanism
+By adding the above instruction to your Agent, your project gains the ability to self-evolve and break the AI's "goldfish memory". This operates in 4 stages:
+1. **Trigger Condition**: If the Agent was rejected by `codex-loop` (received `Exit 1` or a Linter error) during the current task.
+2. **Self-Reflection**: When it finally fixes the code, gets a `PASS (Exit 0)`, and prepares to report success, it is forced to summarize the mistake it just made and the fix logic in 1-2 sentences.
+3. **Knowledge Settling**: The Agent actively writes this reflection into `.codex_lessons.md` at the project root.
+4. **Ancestral Experience**: The next time a new task starts in the same project, the Agent will read this mistake book first, allowing it to bypass previously encountered pitfalls entirely!
 
 ---
 Built by [Sir] & [Muse-Core]
