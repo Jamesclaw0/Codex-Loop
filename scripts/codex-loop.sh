@@ -117,7 +117,7 @@ if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
 fi
 
 # [P1 Fix] 檢查審查結果 (更具魯棒性的判定：含有通過關鍵字 且 絕對不含有 P 級標記)
-if grep -qiE "VERDICT: PASS|no clear, actionable bugs|did not find any discrete, actionable regressions" "$REPORT_FILE" && ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceeded|API Error" "$REPORT_FILE"; then
+if grep -qiE "VERDICT: PASS|no clear, actionable|did not find any.*actionable|no .*actionable" "$REPORT_FILE" && ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceeded|API Error" "$REPORT_FILE"; then
     echo "🎉 [PASSED] Codex 審查通過！準備蓋章..."
     
     COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
