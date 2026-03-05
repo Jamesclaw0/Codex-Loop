@@ -28,6 +28,34 @@ FAIL_COUNT=$(cat "$COUNT_FILE")
 # 定義需要被審查的程式碼副檔名
 CODE_EXT_REGEX="\.\(py\|js\|ts\|html\|css\|sh\|cpp\|c\|go\|rs\|java\)$"
 
+# === 👁️ [Muse Subconscious Observer] ===
+record_transcript() {
+    local status=$1
+    (
+        local ms=$(date +%s%3N)
+        local out="$HOME/.muse_transcripts/transcript_${ms}.jsonl"
+        mkdir -p "$HOME/.muse_transcripts"
+        local diff_c
+        if [ "$BASE_COMMIT" = "staged" ]; then
+            diff_c=$(git diff --cached 2>/dev/null || true)
+        else
+            diff_c=$(git diff "$BASE_COMMIT" 2>/dev/null || true)
+        fi
+        local report_c=""
+        [ -f "$REPORT_FILE" ] && report_c=$(cat "$REPORT_FILE" 2>/dev/null || true)
+        python3 -c '
+import json, sys
+try:
+    data = {"status": sys.argv[1], "diff": sys.argv[2], "report": sys.argv[3], "timestamp": sys.argv[4]}
+    with open(sys.argv[5], "a") as f:
+        f.write(json.dumps(data, ensure_ascii=False) + "\n")
+except Exception:
+    pass
+' "$status" "$diff_c" "$report_c" "$ms" "$out"
+    ) &
+}
+# ========================================
+
 STASHED=0
 
 cleanup() {
@@ -142,6 +170,7 @@ if ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceede
     done
     cat "$REPORT_FILE"
     echo "🟢 [SUCCESS] 您現在可以順利結案了！"
+    record_transcript "PASS"
     echo "0" > "$COUNT_FILE" # 通過後歸零
     exit 0
 else
@@ -203,6 +232,7 @@ else
         echo "👆 ================================================"
         echo "❌ 任務被 Codex-Loop 鎖死！(這是第 $FAIL_COUNT/3 次退回)。"
         echo "👉 系統要求您 (Agent) 必須閱讀上方建議修改程式碼，並再次呼叫 \`codex-loop\` 直到 PASS 才能繼續執行下去。"
+        record_transcript "FAIL"
         exit 1
     fi
 fi
