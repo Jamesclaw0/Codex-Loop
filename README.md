@@ -15,6 +15,9 @@
 - **自主修復機制**：不僅是報告錯誤，更強迫 AI 根據審查報告進行自我修正。
 - **跨模型審核 (Cross-Model Judge)**：利用模型間的認知差異（如：用 OpenAI Codex 審核 Claude 的產出），消除單一模型的盲點。
 - **3 次熔斷 (3-Strike Policy)**：如果 Agent 陷入死循環，工具會自動升級為「終極指導模式」，強制輸出正確解法，確保開發不中斷且節省 Token。
+- **雙層防護機制 (Dual-Layer Locks)**：
+  - **API 全域排隊鎖**：內建 Python `fcntl` 全域鎖，多個 Agent 同時呼叫審查時會自動排隊，防止 API 配額爆掉（Rate Limit Error）。
+  - **檔案防撞鎖相容**：完美相容於 `codex-worker` 兵營管理系統，防止多 Agent 開發同一個 Repo 時的檔案覆寫衝突。
 - **本地 Linter 支援 (Local Linter)**：內建 Python `ruff` 與 `py_compile` 語法預檢，在呼叫昂貴 LLM 前先過濾基礎錯誤。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
@@ -39,6 +42,7 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
 
 ```markdown
 ## 🛡️ 程式碼送審鐵律 (Code Ping-Pong Protocol) - 強制執行
+- **[工作宣告 (可選)]**: 支援 `codex-worker` 多 Agent 協作場景，修改前先 `codex-worker lock <檔案>` 宣告所有權，完成後 `codex-worker release`。
 - **[強制流程]**: 每次修改完任何程式碼檔案，準備告知完成前，Agent 必須「自動」安排一組 Tool Call 執行：
   1. 執行 `git add <修改的檔案>`
   2. 執行全域指令 `codex-loop` (或您的絕對路徑)
