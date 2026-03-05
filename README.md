@@ -59,6 +59,18 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
 3. **沉澱寫入**：Agent 將這句反省主動寫入專案根目錄的 `.codex_lessons.md`。
 4. **祖傳經驗**：下次在同專案開啟新任務時，Agent 的 Context Prep 理當會優先讀到這本錯題簿，直接避開曾經踩過的雷區！
 
+### 🗡️ 并行修復模式 (*parallel-fix) [NEW]
+`codex-loop` 正式擴充【定制分身多開】模式，透過内建腳本 `parallel_fix.py` 實現:
+- **自動建立** N 個 Git Worktree 分身剫本
+- **並行執行** 不同子任務
+- **強制自審** 每層分身必需經 `codex-loop` 審核才能進入收割
+- **智能收割** 合并所有經認證的分支，衝突時保留未合併分支以便手動恢復
+
+```bash
+# 呼叫方式
+python3 parallel_fix.py '任務描述' [part_1,part_2,...]
+```
+
 ### 🧩 生態系相容性 (Ecosystem Compatibility)
 `codex-loop` 的設計理念是「極度解耦」，它與以下工具完美聯動：
 - **Git Worktree / 並行開發**：當您派出多個「分身 Agent」同時在隔離環境工作時，`codex-loop` 是唯一的入關閘門，確保任何分身的產出都符合全局品質標準。
@@ -116,6 +128,18 @@ By adding the above instruction to your Agent, your project gains the ability to
 2. **Self-Reflection**: When it finally fixes the code, gets a `PASS (Exit 0)`, and prepares to report success, it is forced to summarize the mistake it just made and the fix logic in 1-2 sentences.
 3. **Knowledge Settling**: The Agent actively writes this reflection into `.codex_lessons.md` at the project root.
 4. **Ancestral Experience**: The next time a new task starts in the same project, the Agent will read this mistake book first, allowing it to bypass previously encountered pitfalls entirely!
+
+### 🗡️ Parallel Fix Mode (*parallel-fix) [NEW]
+`codex-loop` now ships a `parallel_fix.py` script for **parallel task orchestration**:
+- Automatically spawns N isolated Git Worktrees
+- Executes subtasks truly concurrently
+- Every worker branch **must pass `codex-loop`** before harvest
+- Smart merge: conflict detection, branch preservation for manual recovery
+
+```bash
+# Usage
+python3 parallel_fix.py '<task_description>' [part_1,part_2,...]
+```
 
 ### 🧩 Ecosystem Compatibility
 `codex-loop` is built to be modular and works architecturally with:
