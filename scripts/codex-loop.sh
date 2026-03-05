@@ -107,7 +107,14 @@ while read -r f; do
 done <<< "$FILES"
 
 # 實際呼叫 Codex API 進行 Review
-codex review $UNCOMMITTED_FLAG > "$REPORT_FILE" 2>&1
+# === 🔒 [全域鎖] 防止多 Agent 同時呼叫 Codex 導致 API 配額競爭 ===
+# 使用 Python fcntl 實作 macOS 相容的 atomic 鎖定，自動排隊等待
+python3 -c "
+import fcntl, sys, subprocess
+with open('/tmp/codex_loop_global.lock', 'w') as f:
+    fcntl.flock(f, fcntl.LOCK_EX)
+    sys.exit(subprocess.run(sys.argv[1:]).returncode)
+" codex review $UNCOMMITTED_FLAG > "$REPORT_FILE" 2>&1
 
 # === [新增防禦] 檢查是否發生 API 配額、Git 錯誤或底層崩潰 ===
 if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
