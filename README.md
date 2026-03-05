@@ -14,14 +14,15 @@
 
 - **自主修復機制**：不僅是報告錯誤，更強迫 AI 根據審查報告進行自我修正。
 - **跨模型審核 (Cross-Model Judge)**：利用模型間的認知差異（如：用 OpenAI Codex 審核 Claude 的產出），消除單一模型的盲點。
-- **5 次熔斷 (5-Strike Policy)**：如果 Agent 陷入死循環，工具會自動升級為「終極指導模式」，強制輸出正確解法，確保開發不中斷。
+- **3 次熔斷 (3-Strike Policy)**：如果 Agent 陷入死循環，工具會自動升級為「終極指導模式」，強制輸出正確解法，確保開發不中斷且節省 Token。
+- **本地 Linter 支援 (Local Linter)**：內建 Python `ruff` 與 `py_compile` 語法預檢，在呼叫昂貴 LLM 前先過濾基礎錯誤。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
 ### 🛠️ 安裝與使用
 
 1. **複製專案**：
    ```bash
-   git clone https://github.com/your-username/codex-loop.git
+   git clone https://github.com/Jamesclaw0/Codex-Loop.git
    ```
 2. **建立連結**：
    ```bash
@@ -42,7 +43,8 @@
 
 - **Autonomous Correction**: Forces the AI to read the review and fix its own bugs.
 - **Cross-Model Integrity**: Eliminate model blind spots by using a judging model to verify a coding model.
-- **5-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
+- **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
+- **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
 - **Verification Stamping**: Automatically injects `Codex-Verified` stamps into files that pass the gate.
 
 ### 🛠️ Installation & Usage
