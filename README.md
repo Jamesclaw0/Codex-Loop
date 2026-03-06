@@ -21,7 +21,7 @@
 - **本地 Linter 支援 (Local Linter)**：內建 Python `ruff` 與 `py_compile` 語法預檢，在呼叫昂貴 LLM 前先過濾基礎錯誤。
 - **🛡️ 品質驗證蓋章 (Codex-Verified)**：審查通過後自動在檔案頂部注入隱藏的品質章節，作為最終合併的信任憑證。
 - **Resilient Path (路徑魯棒性修復) [NEW]**: 智慧處理 Git 轉義路徑，完美支援包含中文字元、空格或特殊符號的檔案路徑，解決 Linter 解析失敗的痛點。
-- **Serena (Semantic Coding) 支援 [NEW]**: 內建 `.serena` 配置，支援語義化代碼搜尋與結構化導航，協助 AI Agent 深度理解代碼意圖。
+- **Serena 語義化支援 [NEW]**: 整合 Serena 工具規約，支援精確的符號級（Symbol-level）搜尋、重構與引用分析，讓 Agent 具備更強大的代碼感知能力。
 - **👁️ 潛意識觀察者 (Subconscious Observer)**：自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
@@ -96,7 +96,8 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 - **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
 - **Verification Stamping**: Automatically injects `Codex-Verified` stamps into files that pass the gate.
 - **🛡️ Quality Gate Stamping**: [NEW] Injects a verification hash into successful files, serving as a trust certificate for merges.
-- **Serena (Semantic Coding) Ready**: Built-in `.serena` configuration for advanced semantic code search and structured navigation for AI agents.
+- **Resilient Path (Robustness Fix)**: Smart handling of Git-escaped paths, perfectly supporting file paths with Chinese characters, spaces, or special symbols.
+- **Serena Semantic Support [NEW]**: Integrated Serena tool protocols, supporting precise symbol-level search, refactoring, and reference analysis for superior code awareness.
 - **👁️ Subconscious Observer**: [NEW] Automatically records PASS/FAIL development fragments and distills lessons via background daemons to give agents memory and prevent repeated mistakes.
 
 ### 🛠️ Installation & Usage
