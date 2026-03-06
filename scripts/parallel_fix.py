@@ -87,7 +87,10 @@ def process_subtask(
         )
         if check.returncode != 0:
             cleanup_worker(project_root, work_path, branch_name)
-            return WorkerResult(i, sub, None, None, "Codex-Loop rejected")
+            error_msg = f"Codex-Loop rejected (Code: {check.returncode})"
+            if check.stdout:
+                print(f"[Worker #{i+1}] Output: {check.stdout.strip()}")
+            return WorkerResult(i, sub, None, None, error_msg)
 
         # 把自動產生的 .fix_log 從 staging 區拔除，避免污染 commit 與產生 merge conflict
         run_cmd(["git", "rm", "--cached", ".fix_log", "--ignore-unmatch"], cwd=work_path)

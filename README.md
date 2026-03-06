@@ -105,20 +105,6 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 - **Cross-Model Integrity**: Eliminate model blind spots by using a judging model to verify a coding model.
 - **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
 - **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
-- **Verification Stamping**: Automatically injects `Codex-Verified` stamps into files that pass the gate.
-- **🛡️ Quality Gate Stamping**: [NEW] Injects a verification hash into successful files, serving as a trust certificate for merges.
-- **🔓 Inclusive Review Mode [NEW]**: Safely includes Staged, Unstaged, and Untracked files in the Codex review context for a holistic codebase understanding, while strictly guaranteeing that your WIP (unstaged) code is **never** accidentally committed.
-- **✂️ Token-Saving Truncation [NEW]**: Automatically truncates excessively long Codex review reports (e.g., > 10,000 chars) while preserving critical P1/P2/Bug feedback at the tail end. This prevents your AI Agent's Context Window from exploding and saves massive amounts of Tokens.
-- **Resilient Path (Robustness Fix)**: Smart handling of Git-escaped paths, perfectly supporting file paths with Chinese characters, spaces, or special symbols.
-- **Serena Semantic Support [NEW]**: Integrated Serena tool protocols, supporting precise symbol-level search, refactoring, and reference analysis for superior code awareness.
-- **🧲 Physical Add Guard [NEW]**: If an agent calls review without `git add`, `codex-loop` detects unstaged code files and exits immediately with `Exit 1 + loud error`. This closes the "reviewed empty staging area but reported PASS" ghost vulnerability that silently bypassed quality gates.
-- **⚡ Smart Splitter Auto-Commit [NEW]**: When Codex only flags some files in a batch review, the **smart splitter** now stamps clean files and **immediately commits them** rather than just re-adding to staging. This eliminates the problem of subsequent rounds still showing the full N-file batch when only 1-2 actually need fixing.
-- **🔁 Continuation Turn [NEW]**: Supports `--continuation` flag to send only incremental state context during subsequent iterations, drastically reducing Token usage and speeding up response times.
-- **🧠 Orchestrator State Machine [NEW]**: Built-in task state tracking (Claim/Start/Done/Retry) prevents ghost retries and duplicate reviews, deeply integrated into the lifecycle.
-- **📦 Per-task Workspace Sandbox [NEW]**: Seamlessly integrates with `workspace-manager` to ensure each task runs in an isolated `/tmp/claw-workspaces/<task_id>` directory, completely preventing cross-project code contamination.
-- **🔊 Humanized Event Summaries [NEW]**: Integrates system audio notifications with dynamic templates to report review progress and bug summaries in an informative and human-friendly manner.
-- **👁️ Subconscious Observer**: [NEW] Automatically records PASS/FAIL development fragments and distills lessons via background daemons to give agents memory and prevent repeated mistakes.
-- **🧩 Agent DX 2.0: Introspection Protocol (--describe) [NEW]**: Core tools can now "self-explain". Use `--describe` to get the JSON Schema directly, saving up to 50% Token consumption on manual code reading.
 - **🛁 Git Hygiene Checker [NEW]**: Intelligent pre-flight check that scans for excess untracked files before starting review. Prevents indexing freezes and ensures a clean, predictable review environment.
 
 ### 🛠️ Installation & Usage
