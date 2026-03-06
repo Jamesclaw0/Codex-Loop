@@ -33,6 +33,10 @@
 - **👁️ 潛意識觀察者 (Subconscious Observer)**：自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
 - **🧩 Agent DX 2.0: 工具自省協議 (--describe) [NEW]**: 核心工具具備「自我解說」能力，Agent 可透過執行 `tool --describe` 直接獲取該工具的 **JSON Schema**，大幅減少閱讀源碼所消耗的 Token。
 - **🛁 Git 衛生檢查員 (Git Hygiene Checker) [NEW]**: 內建預檢機制，在啟動 Review 前自動掃描未暫存檔案數量。若發現環境過於雜亂（可能導致 LLM 索引鎖死），會主動發出警報並阻斷流程，確保審查環境的純淨。
+- **🧠 Lvl 16.1 神經整合與稽核 (Neural Loop Audit) [NEW]**:
+  - **全量思想稽核 (Full Prompt Auditing)**：自動紀錄 Codex 審查時看到的「全量教訓 (Prompt)」，讓 AI 的決策過程 100% 透明可驗證。
+  - **雙向認知閉環 (Bi-directional Loop)**：與 `muse_subconscious_daemon` 深度掛鉤，自動紀錄開發碎片供大腦背景反思，實現「開發 -> 被攔截 -> 學習 -> 進化」的自動化管線。
+  - **提交即主權 (Mandatory Commitment)**：確立「未經 commit 即為雜訊」原則，確保代碼變更必須經過 Loop 認證後才具備永久存檔效力。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
 ### 🛠️ 安裝與使用
@@ -106,6 +110,10 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 - **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
 - **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
 - **🛁 Git Hygiene Checker [NEW]**: Intelligent pre-flight check that scans for excess untracked files before starting review. Prevents indexing freezes and ensures a clean, predictable review environment.
+- **🧠 Lvl 16.1 Neural Loop Audit [NEW]**:
+  - **Full Prompt Auditing**: Records exactly which lessons/prompts were applied to a review for 100% transparency.
+  - **Bi-directional Knowledge Cycle**: Integrates with subconscious daemons to record dev transcripts (PASS/FAIL) for continuous AI self-reflection and growth.
+  - **Mandatory Commitment Protocol**: Establishes the rule that "unread/uncommitted is noise," forcing code validation via loops before it gains permanent status.
 
 ### 🛠️ Installation & Usage
 

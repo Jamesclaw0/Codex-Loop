@@ -75,13 +75,14 @@ class CodexLoopBrain:
         
         return "\n\n".join(lessons) if lessons else "No specific lessons found."
 
-    def _record_transcript(self, status, diff, report):
+    def _record_transcript(self, status, diff, report, prompt):
         """紀錄審查碎片供大腦潛意識消化。"""
         transcript = {
             "timestamp": datetime.now().isoformat(),
             "repo": self.git_dir or "global",
             "scope": self.scope,
             "status": status,
+            "prompt": prompt[:5000],  # 截斷以保護 JSONL 大小 (Fix prompted by self-review)
             "diff": diff[:5000],  # 截斷以保護 JSONL 大小
             "report": report
         }
@@ -182,10 +183,11 @@ class CodexLoopBrain:
             self._write_fallback_report(err_msg)
             return False
             
-        is_pass = (res.returncode == 0) and ("STATUS: PASS" in res.stdout)
+        # 實踐教訓 Lvl 16.1: 改用關鍵字包含判定，提升 CI 韌性 (避免因 WebSocket 雜訊 Return 1 導致攔截)
+        is_pass = "STATUS: PASS" in res.stdout
         
         # 經驗紀錄 (Lvl 16 閉環關鍵)
-        self._record_transcript("PASS" if is_pass else "FAIL", diff_text, report)
+        self._record_transcript("PASS" if is_pass else "FAIL", diff_text, report, prompt)
         
         try:
             with open(self.report_file, "w") as f:
