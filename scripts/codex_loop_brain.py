@@ -10,18 +10,23 @@ import sys
 import subprocess
 import fcntl
 import hashlib
+import json
+import time
+from pathlib import Path
+from datetime import datetime
 
 # --- 配置 ---
-KB_DIR = os.getenv("MUSE_CORE_KB_DIR", os.getcwd())
+KB_DIR = os.getenv("MUSE_CORE_KB_DIR", "/Users/jameschen/Downloads/obsidian/知識庫")
 
 class CodexLoopBrain:
     def __init__(self, scope=".", use_global=False, base_commit="staged"):
         self.scope = scope if not use_global else ""
         self.base_commit = base_commit
         self.git_dir = self._get_git_dir()
+        self.transcripts_dir = Path.home() / ".muse_transcripts"
+        self.transcripts_dir.mkdir(exist_ok=True)
         
         if self.git_dir:
-            # Use absolute path for more unique hashing (P1 Fix)
             abs_git_dir = os.path.abspath(self.git_dir)
             repo_hash = hashlib.md5(abs_git_dir.encode()).hexdigest()[:8]
             self.count_file = os.path.join(self.git_dir, "codex_loop_count.txt")
@@ -31,6 +36,46 @@ class CodexLoopBrain:
             self.count_file = "/tmp/codex_loop_count.txt"
             self.lock_file = "/tmp/codex_loop_global.lock"
             self.report_file = "/tmp/codex_loop_report.md"
+
+    def _get_subconscious_lessons(self):
+        """讀取大腦潛意識與專案教訓。"""
+        lessons = []
+        # 1. 讀取全域潛意識
+        sub_file = Path(KB_DIR) / "00_System_Knowledge/01_Operations/04_Subconscious_Memory.md"
+        if sub_file.exists():
+            try:
+                content = sub_file.read_text(encoding="utf-8")
+                if "<muse_subconscious>" in content:
+                    extracted = content.split("<muse_subconscious>")[1].split("</muse_subconscious>")[0]
+                    lessons.append(f"--- Global Subconscious Lessons ---\n{extracted.strip()}")
+            except Exception: pass
+
+        # 2. 讀取專案局部教訓
+        if self.git_dir:
+            local_lessons = Path(self.git_dir).parent / ".codex_lessons.md"
+            if local_lessons.exists():
+                try:
+                    lessons.append(f"--- Project Specific Lessons ---\n{local_lessons.read_text(encoding='utf-8')}")
+                except Exception: pass
+        
+        return "\n\n".join(lessons) if lessons else "No specific lessons found."
+
+    def _record_transcript(self, status, diff, report):
+        """紀錄審查碎片供大腦潛意識消化。"""
+        transcript = {
+            "timestamp": datetime.now().isoformat(),
+            "repo": self.git_dir or "global",
+            "scope": self.scope,
+            "status": status,
+            "diff": diff[:5000],  # 截斷以保護 JSONL 大小
+            "report": report
+        }
+        ts_file = self.transcripts_dir / f"loop_{int(time.time())}.jsonl"
+        try:
+            with open(ts_file, "w", encoding="utf-8") as f:
+                f.write(json.dumps(transcript, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"⚠️ [BRAIN] Warning: Could not record transcript: {e}")
 
     def _get_git_dir(self):
         try:
@@ -104,9 +149,10 @@ class CodexLoopBrain:
             self._write_fallback_report(err_msg)
             return False
 
-        prompt = f"Instruction: Review the code for bugs, logic errors, and anti-patterns. If perfect, output EXACTLY the strict string 'STATUS: PASS' without any surrounding text, markdown, or explanation. Otherwise, be specific.\n\nFILES: {', '.join(code_files)}\n\nDIFF:\n"
+        lessons = self._get_subconscious_lessons()
+        prompt = f"Instruction: Review the code for bugs, logic errors, and anti-patterns. Use the subconscious lessons below as mandatory quality criteria.\n\nLESSONS:\n{lessons}\n\nFILES: {', '.join(code_files)}\n\nDIFF:\n"
         
-        print("🔍 正在呼叫 Codex 進行輔助決策...")
+        print("🔍 正在呼叫 Codex 進行輔助決策 (已注入大腦教訓)...")
         try:
             with open(self.lock_file, "w") as lock_f:
                 fcntl.flock(lock_f, fcntl.LOCK_EX)
@@ -117,6 +163,11 @@ class CodexLoopBrain:
             print(err_msg)
             self._write_fallback_report(err_msg)
             return False
+            
+        is_pass = (res.returncode == 0) and ("STATUS: PASS" in res.stdout)
+        
+        # 經驗紀錄 (Lvl 16 閉環關鍵)
+        self._record_transcript("PASS" if is_pass else "FAIL", diff_text, report)
         
         try:
             with open(self.report_file, "w") as f:
@@ -124,7 +175,6 @@ class CodexLoopBrain:
         except OSError as e:
             print(f"⚠️ [BRAIN] Warning: Could not write report: {e}")
         
-        is_pass = (res.returncode == 0) and ("STATUS: PASS" in res.stdout)
         if is_pass:
             print("🎉 [PASSED] 認知閉環驗證通過！")
             self.set_fail_count(0)
