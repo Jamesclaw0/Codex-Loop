@@ -37,17 +37,19 @@ class CodexLoopBrain:
             self.lock_file = "/tmp/codex_loop_global.lock"
             self.report_file = "/tmp/codex_loop_report.md"
 
-    def _get_git_dir(self):
-        try:
-            return subprocess.check_output(["git", "rev-parse", "--absolute-git-dir"]).decode().strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return None
-
     def _get_project_root(self):
         """獲取 Git 倉庫根目錄 (支援 Worktree)。"""
         try:
             return subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode().strip()
-        except: return None
+        except (subprocess.CalledProcessError, FileNotFoundError): 
+            return None
+
+    def _get_git_dir(self):
+        """獲取 Git 內部目錄。"""
+        try:
+            return subprocess.check_output(["git", "rev-parse", "--absolute-git-dir"]).decode().strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
 
     def _get_subconscious_lessons(self):
         """讀取大腦潛意識與專案教訓。"""
@@ -92,11 +94,6 @@ class CodexLoopBrain:
         except Exception as e:
             print(f"⚠️ [BRAIN] Warning: Could not record transcript: {e}")
 
-    def _get_git_dir(self):
-        try:
-            return subprocess.check_output(["git", "rev-parse", "--absolute-git-dir"]).decode().strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return None
 
     def get_fail_count(self):
         if os.path.exists(self.count_file):
