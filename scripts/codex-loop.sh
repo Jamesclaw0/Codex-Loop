@@ -1,6 +1,6 @@
 #!/bin/bash
-# 🛡️ Codex-Verified: 4c3b1ac (2026-03-06)
-# 🛡️ Codex-Loop (Lvl 13 Quality Guard: Ping-Pong Loop for Code)
+# 🛡️ Codex-Verified: 0a91537 (2026-03-06)
+# 🛡️ Codex-Loop (Lvl 14 Quality Guard: Inclusive Review - Staged + Unstaged + Untracked)
 # Muse-Core 的強制跨模型程式碼防護鎖 (內建 5 次熔斷直接給 Code 機制)
 
 echo "🔍 [Codex-Loop] 啟動跨模型程式碼審查..."
@@ -40,12 +40,13 @@ CODE_EXT_REGEX="\.(py|js|ts|html|css|sh|cpp|c|go|rs|java)$"
 record_transcript() {
     local status=$1
     (
-        local ms=$(date +%s%3N)
+        local ms
+        ms=$(date +%s%3N)
         local out="$HOME/.muse_transcripts/transcript_${ms}.jsonl"
         mkdir -p "$HOME/.muse_transcripts"
         local diff_c
         if [ "$BASE_COMMIT" = "staged" ]; then
-            diff_c=$(git diff --cached 2>/dev/null || true)
+            diff_c=$({ git diff --cached; git diff; } 2>/dev/null || true)
         else
             diff_c=$(git diff "$BASE_COMMIT" 2>/dev/null || true)
         fi
@@ -64,6 +65,48 @@ except Exception:
 }
 # ========================================
 
+# [P7 Fix - Root Cause Fix] 蓋章函式：只對 staged index 中的版本蓋章，完全不動工作目錄
+# 流程： git cat-file blob ":$f" 取得 staged 版本 -> 寫臨臨時檔 -> 蓋章 -> hash-object -> update-index
+# 這樣即使工作目錄還有 unstaged hunks，也不會被体入 commit
+stamp_staged_file() {
+    local f="$1" commit_id="$2"
+    local _tmp_staged
+    _tmp_staged=$(mktemp)
+    # 從 index 读取 staged 版本
+    if ! git cat-file blob ":$f" > "$_tmp_staged" 2>/dev/null; then
+        rm -f "$_tmp_staged"
+        return 1
+    fi
+    # 對臨時檔中的 staged 版本蓋章
+    python3 "$STAMPER" "$_tmp_staged" "$commit_id" || true
+    # 獲取 staged 的檔案模式
+    local _file_mode
+    _file_mode=$(git ls-files --stage "$f" | awk '{print $1}')
+    # 將蓋章後的臨時檔寫入 git object store
+    local _new_blob
+    _new_blob=$(git hash-object -w "$_tmp_staged")
+    rm -f "$_tmp_staged"
+    # 只更新 index，不動工作目錄
+    git update-index --cacheinfo "${_file_mode:-100644},${_new_blob},${f}"
+}
+
+# [P8 Fix-P2] 統一的 diff 輸出函式，直接輸出至 stdout
+print_review_diff() {
+    if [ "$BASE_COMMIT" = "staged" ]; then
+        # staged + unstaged modified
+        { git diff --cached; git diff; }
+        # [P6 Fix-P2] untracked 檔案不在任何 diff 輸出中，需額外生成
+        if [ -n "$HAS_UNTRACKED" ]; then
+            while read -r uf; do
+                [ -z "$uf" ] && continue
+                git diff --no-index /dev/null "$uf" 2>/dev/null || true
+            done <<< "$HAS_UNTRACKED"
+        fi
+    else
+        git diff "$BASE_COMMIT"
+    fi
+}
+
 STASHED=0
 
 cleanup() {
@@ -78,7 +121,7 @@ cleanup() {
 trap cleanup EXIT
 
 CONTINUATION=0
-if [ "$#" -ge 1 ] && [ "$1" == "--continuation" ]; then
+if [ "$#" -ge 1 ] && [ "$1" = "--continuation" ]; then
     CONTINUATION=1
     shift
 fi
@@ -93,34 +136,36 @@ if [ "$#" -ge 1 ] && [ "$1" != "staged" ]; then
         echo "0" > "$COUNT_FILE"
         exit 0
     fi
-    
+
     UNCOMMITTED_FLAG="--base $BASE_COMMIT"
-    DIFF_CMD="git diff $BASE_COMMIT"
 else
     echo "📊 審查範圍：已暫存的變更 (Staged changes)"
-    FILES=$(git -c core.quotepath=false diff --cached --name-only | grep -Ei "$CODE_EXT_REGEX" || true)
+    STAGED_FILES=$(git -c core.quotepath=false diff --cached --name-only | grep -Ei "$CODE_EXT_REGEX" || true)
+
+    # [P4 Fix] 也把未暫存 (modified) 與未追蹤 (untracked) 的程式碼檔納入審查
+    #   ⚠️ 這些檔案只會被「審查」，通過後不會自動 git add（保留用戶控制權）
+    HAS_UNSTAGED=$(git -c core.quotepath=false diff --name-only --diff-filter=AM | grep -Ei "$CODE_EXT_REGEX" || true)
+    HAS_UNTRACKED=$(git -c core.quotepath=false ls-files --others --exclude-standard | grep -Ei "$CODE_EXT_REGEX" || true)
+
+    if [ -n "$HAS_UNSTAGED" ] || [ -n "$HAS_UNTRACKED" ]; then
+        echo "⚠️  [NOTICE] 偵測到尚未暫存的程式碼檔案，將一併納入 Codex 審查（但不會自動 git add）："
+        [ -n "$HAS_UNSTAGED" ] && echo "$HAS_UNSTAGED" | awk '{print "  📝 未暫存 (modified): "$0}'
+        [ -n "$HAS_UNTRACKED" ] && echo "$HAS_UNTRACKED" | awk '{print "  🆕 未追蹤 (untracked): "$0}'
+        echo "  👉 若希望這些檔案進入 commit，請在審查通過後執行 git add。"
+        echo ""
+    fi
+
+    # 合併 Staged + Unstaged + Untracked 到完整審查清單
+    FILES=$(printf "%s\n%s\n%s" "$STAGED_FILES" "$HAS_UNSTAGED" "$HAS_UNTRACKED" | sort -u | grep -Ei "$CODE_EXT_REGEX" || true)
 
     if [ -z "$FILES" ]; then
         echo "✅ [SKIPPED] 未偵測到目標程式碼檔案（.py, .js 等）的變更，無痛放行。"
         echo "0" > "$COUNT_FILE"
         exit 0
     fi
-    
-    # [防禦機制 - 物理強制 Agent 紀律] 只篙程式碼檔案，不管無關的 md 或 json
-    HAS_UNSTAGED=$(git diff --name-only --diff-filter=AM | grep -Ei "$CODE_EXT_REGEX" || true)
-    HAS_UNTRACKED=$(git ls-files --others --exclude-standard | grep -Ei "$CODE_EXT_REGEX" || true)
-    if [ ! -z "$HAS_UNSTAGED" ] || [ ! -z "$HAS_UNTRACKED" ]; then
-        echo '🚨 [FATAL ERROR] Agent 忘記將程式碼檔進行 git add！'
-        echo "下列程式碼檔案尚未暫存或未追蹤，為防止審查漏洞，Codex-Loop 拒絕執行！"
-        echo "$HAS_UNSTAGED" | awk '{print "  未暫存: "$0}'
-        echo "$HAS_UNTRACKED" | awk '{print "  未追蹤: "$0}'
-        echo '👉 請 Agent 立刻執行 `git add <相關檔案>`，然後再重新呼叫 `codex-loop staged`！'
-        exit 1
-    fi
-    
+
     BASE_COMMIT="staged"
     UNCOMMITTED_FLAG="--uncommitted"
-    DIFF_CMD="git diff --cached"
 fi
 
 echo "📄 偵測到以下程式碼變更，準備進行本地預檢與 Codex 審查:"
@@ -166,7 +211,8 @@ if [ "$CONTINUATION" -eq 1 ]; then
     echo "🔄 執行增量 Prompt (Continuation Turn)..."
     INPUT_FILE="/tmp/codex_loop_input.txt"
     echo "$PROMPT" > "$INPUT_FILE"
-    $DIFF_CMD >> "$INPUT_FILE"
+    # [P5 Fix-P2] 使用 print_review_diff 函式以正確涵蓋 staged + unstaged + untracked 的 diff
+    print_review_diff >> "$INPUT_FILE"
     python3 -c "
 import fcntl, sys, subprocess
 with open('/tmp/codex_loop_global.lock', 'w') as f:
@@ -194,74 +240,93 @@ fi
 # LLM 的通過措辭千變萬化，但失敗標記 [P1]/[P2]/[Bug] 是固定格式，只偵測這個
 if ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceeded|API Error" "$REPORT_FILE"; then
     echo "🎉 [PASSED] Codex 審查通過！準備蓋章..."
-    
+
     COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
-    
-    # [P3 Fix] 使用 -c core.quotepath=false 獲取原始路徑，確保含有空格或中文字元的檔名不會被切斷
-    echo "$FILES" | while read -r f_raw; do
-        # 優先嘗試原始路徑，若不存在則嘗試去除引號（雙重防禦）
+
+    # [P5 Fix-P2] 蓋章只針對原本已 staged 的檔案，不會誤改 WIP 檔案
+    # 如果是非 staged 模式（如 codex-loop <commit>），STAGED_FILES 未定義，改用 FILES
+    if [ -n "${STAGED_FILES+x}" ]; then
+        STAMP_TARGETS="$STAGED_FILES"
+    else
+        STAMP_TARGETS="$FILES"
+    fi
+
+    echo "$STAMP_TARGETS" | while read -r f_raw; do
         f="$f_raw"
         if [ ! -f "$f" ]; then
             f=$(echo "$f_raw" | sed 's/^"//;s/"$//')
         fi
 
         if [ -n "$f" ] && [ -f "$f" ]; then
-            python3 "$STAMPER" "$f" "$COMMIT_ID" || true
-            # [P2 Fix] 如果是暫存模式，標註後必須重新 add 以確保標記進入 commit
-            if [ "$BASE_COMMIT" = "staged" ]; then
-                git add "$f"
+            # [P7 Fix] 蓋章只针對 staged 版本，不修改工作目錄
+            if [ "$BASE_COMMIT" = "staged" ] && echo "$STAGED_FILES" | grep -qxF "$f"; then
+                stamp_staged_file "$f" "$COMMIT_ID" || true
+            else
+                # 非 staged 模式下，直接對工作目錄蓋章後 git add
+                python3 "$STAMPER" "$f" "$COMMIT_ID" || true
             fi
         fi
     done
+
     cat "$REPORT_FILE"
     echo "🟢 [SUCCESS] 您現在可以順利結案了！"
     record_transcript "PASS"
     echo "0" > "$COUNT_FILE" # 通過後歸零
     echo "{\"last_action\": \"Codex Loop 通過審查\"}" > /tmp/codex-loop-state.json
-    if command -v task-orchestrator >/dev/null 2>&1; then task-orchestrator done "$TASK_ID" >/dev/null 2>&1 || true; fi
+    if command -v task-orchestrator >/dev/null 2>&1; then
+        task-orchestrator done "$TASK_ID" >/dev/null 2>&1 || true
+    fi
     exit 0
 else
     FAIL_COUNT=$((FAIL_COUNT + 1))
     echo "$FAIL_COUNT" > "$COUNT_FILE"
-    
+
     echo "⚠️  [REJECTED - EXIT 1] Codex 發現潛在問題/Bug，或是未達到品質要求！"
-    
+
     # === 🔀 智慧分拆功能 (Smart File Splitter) ===
-    # 從 Codex 報告中解析被點名的問題檔案 (格式: → scripts/foo.py:42-50)
-    if [ "$BASE_COMMIT" = "staged" ]; then
+    # 如果是 staged 模式，只對「已暫存 (STAGED_FILES)」的檔案進行分拆
+    # [P5 Fix-P1] 未暫存/未追蹤的檔案只等待審查，不會被自動 commit
+    if [ "$BASE_COMMIT" = "staged" ] && [ -n "$STAGED_FILES" ]; then
         FLAGGED_BASENAMES=$(grep -oiE "\b[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+\b" "$REPORT_FILE" | sort -u || true)
         CLEAN_FILES=""
         DIRTY_FILES=""
+
         while read -r f; do
             [ -z "$f" ] && continue
             BASE=$(basename "$f")
             if echo "$FLAGGED_BASENAMES" | grep -qF "$BASE"; then
-                DIRTY_FILES="$DIRTY_FILES$f"$'\n'
+                DIRTY_FILES="${DIRTY_FILES}${f}"$'\n'
             else
-                CLEAN_FILES="$CLEAN_FILES$f"$'\n'
+                CLEAN_FILES="${CLEAN_FILES}${f}"$'\n'
             fi
-        done <<< "$FILES"
+        done <<< "$STAGED_FILES"
 
         if [ -n "$CLEAN_FILES" ]; then
             echo ""
             echo "✅ [智慧分拆] 以下檔案 Codex 未點名，提前蓋章並立即提交："
             COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
             CLEAN_ARRAY=()
-            echo "$CLEAN_FILES" | while read -r f; do
-                [ -z "$f" ] || [ ! -f "$f" ] && continue
+
+            while read -r f; do
+                [ -z "$f" ] && continue
+                [ ! -f "$f" ] && continue
                 echo "  🏅 $f"
-                python3 "$STAMPER" "$f" "$COMMIT_ID" || true
-                git add "$f"
+                # [P7 Fix] 蓋章只针對 staged 版本，不修改工作目錄
+                stamp_staged_file "$f" "$COMMIT_ID" || true
                 CLEAN_ARRAY+=("$f")
-            done
-            # 立即提交乾淨檔案，避免下輪審查還是包含它們
+            done <<< "$CLEAN_FILES"
+
+            # 立即提交乾淨的 staged 檔案，避免下輪審查還是包含它們
             if [ ${#CLEAN_ARRAY[@]} -gt 0 ]; then
                 git commit -m "chore: [Codex-Split-PASS] auto-stamp clean files from smart splitter" --no-verify -q -- "${CLEAN_ARRAY[@]}" && \
                     echo "🟢 [智慧分拆] 乾淨檔案已自動提交，下輪審查只需面對問題檔案。"
             fi
+
             echo ""
             echo "⚠️  以下問題檔案將繼續迭代："
-            echo "$DIRTY_FILES" | while read -r ff; do [ -n "$ff" ] && echo "  ❌ $ff"; done
+            echo "$DIRTY_FILES" | while read -r ff; do
+                [ -n "$ff" ] && echo "  ❌ $ff"
+            done
             echo ""
         fi
     fi
@@ -271,16 +336,18 @@ else
         echo "🚨 =============== [STRIKE 3: 啟動終極指導模式] ==============="
         echo "⚠️ 您已經連續被退回 $FAIL_COUNT 次！正在強制要求 Codex 給出完美解答..."
         # 終極解法：使用 Unix {} 複合指令將 Prompt 與 Diff 拼接成單一流，安全餵給 codex exec 的 stdin (-)
-        if [ "$BASE_COMMIT" = "staged" ]; then
-            { echo "[STRICT SCOPE LOCK: Ignore all IDE context and other files] This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff --cached; } | codex exec -
-        else
-            { echo "[STRICT SCOPE LOCK: Ignore all IDE context and other files] This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff "$BASE_COMMIT"; } | codex exec -
-        fi
+        {
+            echo "[STRICT SCOPE LOCK: Ignore all IDE context and other files] This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"
+            # [P8 Fix-P2] 使用 print_review_diff 統一取得完整 diff (包含 untracked)
+            print_review_diff
+        } | codex exec -
         echo "0" > "$COUNT_FILE" # 重置計數器以防無限累積
         echo '👆 ================================================================='
         echo '❌ [系統指令] 上方是 Codex 提供的終極參考解法。請 (Agent) 參考修改現有的檔案。⚠️ 注意：如果您或 Sir 發現 Codex 的解法本身有 Bug，您【完全被允許】手動修正它，不需要 100% 盲從。修改完成後，再次呼叫 `codex-loop` 過關。'
         echo "{\"last_action\": \"Codex Loop 提供終極參考解法，等待 Agent 修正\"}" > /tmp/codex-loop-state.json
-        if command -v task-orchestrator >/dev/null 2>&1; then task-orchestrator retry "$TASK_ID" >/dev/null 2>&1 || true; fi
+        if command -v task-orchestrator >/dev/null 2>&1; then
+            task-orchestrator retry "$TASK_ID" >/dev/null 2>&1 || true
+        fi
         exit 1
     else
         echo "👇 =============== [REVIEW REPORT] ==============="
@@ -290,7 +357,9 @@ else
         echo "👉 系統要求您 (Agent) 必須閱讀上方建議修改程式碼，並再次呼叫 \`codex-loop\` 直到 PASS 才能繼續執行下去。"
         record_transcript "FAIL"
         echo "{\"last_action\": \"Codex Loop 提出了修改建議，等待 Agent 修正\"}" > /tmp/codex-loop-state.json
-        if command -v task-orchestrator >/dev/null 2>&1; then task-orchestrator retry "$TASK_ID" >/dev/null 2>&1 || true; fi
+        if command -v task-orchestrator >/dev/null 2>&1; then
+            task-orchestrator retry "$TASK_ID" >/dev/null 2>&1 || true
+        fi
         exit 1
     fi
 fi
