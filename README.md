@@ -29,6 +29,8 @@
 - **📦 Per-task Workspace 沙盒隔離 [NEW]**: 搭配 `workspace-manager`，每個任務可在隔離的 `/tmp/claw-workspaces/<task_id>` 環境中執行，徹底防堵跨專案污染。
 - **🔊 人性化動態語音回報 [NEW]**: 支援動態語音模板回報審查進度與錯誤字串摘要，賦予開發循環更有人味的回饋。
 - **👁️ 潛意識觀察者 (Subconscious Observer)**：自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
+- **🧩 Agent DX 2.0: 工具自省協議 (--describe) [NEW]**: 核心工具具備「自我解說」能力，Agent 可透過執行 `tool --describe` 直接獲取該工具的 **JSON Schema**，大幅減少閱讀源碼所消耗的 Token。
+- **🛁 Git 衛生檢查員 (Git Hygiene Checker) [NEW]**: 內建預檢機制，在啟動 Review 前自動掃描未暫存檔案數量。若發現環境過於雜亂（可能導致 LLM 索引鎖死），會主動發出警報並阻斷流程，確保審查環境的純淨。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
 ### 🛠️ 安裝與使用
@@ -112,6 +114,8 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 - **📦 Per-task Workspace Sandbox [NEW]**: Seamlessly integrates with `workspace-manager` to ensure each task runs in an isolated `/tmp/claw-workspaces/<task_id>` directory, completely preventing cross-project code contamination.
 - **🔊 Humanized Event Summaries [NEW]**: Integrates system audio notifications with dynamic templates to report review progress and bug summaries in an informative and human-friendly manner.
 - **👁️ Subconscious Observer**: [NEW] Automatically records PASS/FAIL development fragments and distills lessons via background daemons to give agents memory and prevent repeated mistakes.
+- **🧩 Agent DX 2.0: Introspection Protocol (--describe) [NEW]**: Core tools can now "self-explain". Use `--describe` to get the JSON Schema directly, saving up to 50% Token consumption on manual code reading.
+- **🛁 Git Hygiene Checker [NEW]**: Intelligent pre-flight check that scans for excess untracked files before starting review. Prevents indexing freezes and ensures a clean, predictable review environment.
 
 ### 🛠️ Installation & Usage
 
