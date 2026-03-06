@@ -19,5 +19,19 @@
 2. Ensure `codex` CLI is installed and configured.
 3. Run `codex-loop` to start the cycle.
 
+## 🤖 Multi-Agent Dispatcher Protocol
+When orchestrating parallel tasks (e.g. via `*parallel-fix`), you must act as the **Orchestrator** and route subtasks based on complexity:
+
+1. **Routing Logic**:
+   - **Codex Agent (High Complexity)**: Algorithms, core architecture refactoring, complex state migrations.
+   - **Gemini Agent (Medium/Low Complexity)**: UI/CSS adjustments, basic CRUD, documentation, config files, lightweight scripts.
+
+2. **Headless Execution Commands**:
+   - **Dispatch to Codex**:
+     `nohup codex exec --full-auto -m <model> -C <Worktree_Path> "Please read .fix_log and fix this project accordingly." >/dev/null 2>&1 &`
+   - **Dispatch to Gemini**:
+     `nohup gemini --workspace <Worktree_Path> -y "Please read .fix_log and fix this project accordingly, exit immediately when done." >/dev/null 2>&1 &`
+   *(Both agents must be run in the background allowing true parallelism.)*
+
 ---
 %% Built for the Muse-Core level 15 ecosystem %%
