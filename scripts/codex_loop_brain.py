@@ -37,6 +37,18 @@ class CodexLoopBrain:
             self.lock_file = "/tmp/codex_loop_global.lock"
             self.report_file = "/tmp/codex_loop_report.md"
 
+    def _get_git_dir(self):
+        try:
+            return subprocess.check_output(["git", "rev-parse", "--absolute-git-dir"]).decode().strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
+
+    def _get_project_root(self):
+        """獲取 Git 倉庫根目錄 (支援 Worktree)。"""
+        try:
+            return subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode().strip()
+        except: return None
+
     def _get_subconscious_lessons(self):
         """讀取大腦潛意識與專案教訓。"""
         lessons = []
@@ -51,8 +63,9 @@ class CodexLoopBrain:
             except Exception: pass
 
         # 2. 讀取專案局部教訓
-        if self.git_dir:
-            local_lessons = Path(self.git_dir).parent / ".codex_lessons.md"
+        root = self._get_project_root()
+        if root:
+            local_lessons = Path(root) / ".codex_lessons.md"
             if local_lessons.exists():
                 try:
                     lessons.append(f"--- Project Specific Lessons ---\n{local_lessons.read_text(encoding='utf-8')}")
@@ -70,7 +83,9 @@ class CodexLoopBrain:
             "diff": diff[:5000],  # 截斷以保護 JSONL 大小
             "report": report
         }
-        ts_file = self.transcripts_dir / f"loop_{int(time.time())}.jsonl"
+        # 使用更唯一的命名防止並行衝突
+        uid = hashlib.md5(f"{time.time()}_{os.getpid()}".encode()).hexdigest()[:6]
+        ts_file = self.transcripts_dir / f"loop_{int(time.time())}_{uid}.jsonl"
         try:
             with open(ts_file, "w", encoding="utf-8") as f:
                 f.write(json.dumps(transcript, ensure_ascii=False) + "\n")
@@ -150,7 +165,13 @@ class CodexLoopBrain:
             return False
 
         lessons = self._get_subconscious_lessons()
-        prompt = f"Instruction: Review the code for bugs, logic errors, and anti-patterns. Use the subconscious lessons below as mandatory quality criteria.\n\nLESSONS:\n{lessons}\n\nFILES: {', '.join(code_files)}\n\nDIFF:\n"
+        prompt = (
+            "Instruction: Review the code for bugs, logic errors, and anti-patterns. "
+            "Use the subconscious lessons below as mandatory quality criteria. "
+            "If the code passes ALL criteria, output EXACTLY the strict string 'STATUS: PASS' "
+            "without any surrounding text. Otherwise, be specific about the violations.\n\n"
+            f"LESSONS:\n{lessons}\n\nFILES: {', '.join(code_files)}\n\nDIFF:\n"
+        )
         
         print("🔍 正在呼叫 Codex 進行輔助決策 (已注入大腦教訓)...")
         try:
