@@ -1,5 +1,5 @@
 #!/bin/bash
-# 🛡️ Codex-Verified: 4eee3dd (2026-03-06)
+# 🛡️ Codex-Verified: e19f879 (2026-03-06)
 # 🛡️ Codex-Loop (Lvl 13 Quality Guard: Ping-Pong Loop for Code)
 # Muse-Core 的強制跨模型程式碼防護鎖 (內建 5 次熔斷直接給 Code 機制)
 
@@ -25,8 +25,8 @@ if [ ! -f "$COUNT_FILE" ]; then
 fi
 FAIL_COUNT=$(cat "$COUNT_FILE")
 
-# 定義需要被審查的程式碼副檔名
-CODE_EXT_REGEX="\.\(py\|js\|ts\|html\|css\|sh\|cpp\|c\|go\|rs\|java\)$"
+# 定義需要被審查的程式碼副檔名 (支援 Git 可能產生的路徑引號)
+CODE_EXT_REGEX="\.\(py\|js\|ts\|html\|css\|sh\|cpp\|c\|go\|rs\|java\)\"\?$"
 
 # === 👁️ [Muse Subconscious Observer] ===
 record_transcript() {
