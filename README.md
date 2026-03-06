@@ -22,6 +22,12 @@
 - **🛡️ 品質驗證蓋章 (Codex-Verified)**：審查通過後自動在檔案頂部注入隱藏的品質章節，作為最終合併的信任憑證。
 - **Resilient Path (路徑魯棒性修復) [NEW]**: 智慧處理 Git 轉義路徑，完美支援包含中文字元、空格或特殊符號的檔案路徑，解決 Linter 解析失敗的痛點。
 - **Serena 語義化支援 [NEW]**: 整合 Serena 工具規約，支援精確的符號級（Symbol-level）搜尋、重構與引用分析，讓 Agent 具備更強大的代碼感知能力。
+- **🧲 物理強制 Add 攔截 [NEW]**: 如果 Agent 忘記 `git add` 就直接呼叫審查，`codex-loop` 會立即偵測到工作區存在**未暫存的程式碼檔案**，並以 **Exit 1 + 大聲警報** 拒絕任何審查，強迫 Agent 先補做 `git add` 再重新送審。徹底消滅「審查到空暫存區卻回報 PASS」的幽靈漏洞。
+- **⚡ 智慧分拆立即提交 [NEW]**: 當 Codex 在批次審查中只點名部分問題檔案時，**智慧分拆**機制會將乾淨的檔案**立即蓋章並提交**，而非僅加入暫存區。這解決了「下輪送審仍然出現全量 N 支 = 無效重複審查」的效率問題，讓每輪迭代聚焦在真正需要修復的檔案。
+- **🔁 Continuation Turn 增量續傳 [NEW]**: 支援 `--continuation` 標記，在重複退回的 Review 循環中，只傳遞狀態機的局部上下文，大幅節省 Token 消耗與提高回應速度。
+- **🧠 狀態機大腦 (Orchestrator State Machine) [NEW]**: 內建 Task State 追蹤 (Claim/Start/Done/Retry)，完美防止 Agent 幽靈重試或重複送審，深度整合生命週期。
+- **📦 Per-task Workspace 沙盒隔離 [NEW]**: 搭配 `workspace-manager`，每個任務可在隔離的 `/tmp/claw-workspaces/<task_id>` 環境中執行，徹底防堵跨專案污染。
+- **🔊 人性化動態語音回報 [NEW]**: 支援動態語音模板回報審查進度與錯誤字串摘要，賦予開發循環更有人味的回饋。
 - **👁️ 潛意識觀察者 (Subconscious Observer)**：自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
@@ -98,6 +104,12 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 - **🛡️ Quality Gate Stamping**: [NEW] Injects a verification hash into successful files, serving as a trust certificate for merges.
 - **Resilient Path (Robustness Fix)**: Smart handling of Git-escaped paths, perfectly supporting file paths with Chinese characters, spaces, or special symbols.
 - **Serena Semantic Support [NEW]**: Integrated Serena tool protocols, supporting precise symbol-level search, refactoring, and reference analysis for superior code awareness.
+- **🧲 Physical Add Guard [NEW]**: If an agent calls review without `git add`, `codex-loop` detects unstaged code files and exits immediately with `Exit 1 + loud error`. This closes the "reviewed empty staging area but reported PASS" ghost vulnerability that silently bypassed quality gates.
+- **⚡ Smart Splitter Auto-Commit [NEW]**: When Codex only flags some files in a batch review, the **smart splitter** now stamps clean files and **immediately commits them** rather than just re-adding to staging. This eliminates the problem of subsequent rounds still showing the full N-file batch when only 1-2 actually need fixing.
+- **🔁 Continuation Turn [NEW]**: Supports `--continuation` flag to send only incremental state context during subsequent iterations, drastically reducing Token usage and speeding up response times.
+- **🧠 Orchestrator State Machine [NEW]**: Built-in task state tracking (Claim/Start/Done/Retry) prevents ghost retries and duplicate reviews, deeply integrated into the lifecycle.
+- **📦 Per-task Workspace Sandbox [NEW]**: Seamlessly integrates with `workspace-manager` to ensure each task runs in an isolated `/tmp/claw-workspaces/<task_id>` directory, completely preventing cross-project code contamination.
+- **🔊 Humanized Event Summaries [NEW]**: Integrates system audio notifications with dynamic templates to report review progress and bug summaries in an informative and human-friendly manner.
 - **👁️ Subconscious Observer**: [NEW] Automatically records PASS/FAIL development fragments and distills lessons via background daemons to give agents memory and prevent repeated mistakes.
 
 ### 🛠️ Installation & Usage

@@ -5,6 +5,14 @@
 
 echo "🔍 [Codex-Loop] 啟動跨模型程式碼審查..."
 
+# ===== [Orchestrator Integration] =====
+TASK_ID=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "default-task")
+if command -v task-orchestrator > /dev/null 2>&1; then
+    task-orchestrator claim "$TASK_ID" >/dev/null 2>&1 || true
+    task-orchestrator start "$TASK_ID" >/dev/null 2>&1 || true
+fi
+# ======================================
+
 # ===== [新增] Git 環境與路徑檢查 =====
 if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
     echo "❌ [ERROR] Codex-Loop 執行失敗：當前目錄不屬於任何 Git 儲存庫，無法執行版本比對。"
@@ -69,6 +77,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+CONTINUATION=0
+if [ "$#" -ge 1 ] && [ "$1" == "--continuation" ]; then
+    CONTINUATION=1
+    shift
+fi
+
 if [ "$#" -ge 1 ] && [ "$1" != "staged" ]; then
     BASE_COMMIT="$1"
     echo "📊 審查範圍：自 $BASE_COMMIT 以來的變更"
@@ -92,14 +106,16 @@ else
         exit 0
     fi
     
-    # [防禦機制] 隔離未暫存的變更，避免干擾 Codex 掃描
-    HAS_UNSTAGED=$(git diff --name-only)
-    HAS_UNTRACKED=$(git ls-files --others --exclude-standard)
+    # [防禦機制 - 物理強制 Agent 紀律] 只篙程式碼檔案，不管無關的 md 或 json
+    HAS_UNSTAGED=$(git diff --name-only --diff-filter=AM | grep -Ei "$CODE_EXT_REGEX" || true)
+    HAS_UNTRACKED=$(git ls-files --others --exclude-standard | grep -Ei "$CODE_EXT_REGEX" || true)
     if [ ! -z "$HAS_UNSTAGED" ] || [ ! -z "$HAS_UNTRACKED" ]; then
-        echo "🔒 工作區存在未暫存或未追蹤檔案，暫時收入 Stash (keep-index) 以隔離審查..."
-        if git stash push -u --keep-index -m "codex-loop-isolation" -q; then
-            STASHED=1
-        fi
+        echo '🚨 [FATAL ERROR] Agent 忘記將程式碼檔進行 git add！'
+        echo "下列程式碼檔案尚未暫存或未追蹤，為防止審查漏洞，Codex-Loop 拒絕執行！"
+        echo "$HAS_UNSTAGED" | awk '{print "  未暫存: "$0}'
+        echo "$HAS_UNTRACKED" | awk '{print "  未追蹤: "$0}'
+        echo '👉 請 Agent 立刻執行 `git add <相關檔案>`，然後再重新呼叫 `codex-loop staged`！'
+        exit 1
     fi
     
     BASE_COMMIT="staged"
@@ -142,12 +158,30 @@ done <<< "$FILES"
 # 實際呼叫 Codex API 進行 Review
 # === 🔒 [全域鎖] 防止多 Agent 同時呼叫 Codex 導致 API 配額競爭 ===
 
-python3 -c "
+if [ "$CONTINUATION" -eq 1 ]; then
+    # Read state
+    STATE_FILE="/tmp/codex-loop-state.json"
+    LAST_ACTION=$(grep -o '"last_action": *"[^"]*"' "$STATE_FILE" 2>/dev/null | cut -d'"' -f4 || echo "Unknown action")
+    PROMPT="[Continuation Turn] Continue from previous turn. Last completed: $LAST_ACTION. If PERFECT, DO NOT output [P1]/[P2]/[Bug]. Output ONLY issues in [P1]/[Bug] format. DIFF:"
+    echo "🔄 執行增量 Prompt (Continuation Turn)..."
+    INPUT_FILE="/tmp/codex_loop_input.txt"
+    echo "$PROMPT" > "$INPUT_FILE"
+    $DIFF_CMD >> "$INPUT_FILE"
+    python3 -c "
 import fcntl, sys, subprocess
 with open('/tmp/codex_loop_global.lock', 'w') as f:
     fcntl.flock(f, fcntl.LOCK_EX)
+    with open('/tmp/codex_loop_input.txt', 'r') as stdin:
+        sys.exit(subprocess.run(['codex', 'exec', '-'], stdin=stdin).returncode)
+" > "$REPORT_FILE" 2>&1
+else
+    python3 -c "
+import fcntl, sys, subprocess
+with open('/tmp/codex_loop_global.lock', 'w') as fh:
+    fcntl.flock(fh, fcntl.LOCK_EX)
     sys.exit(subprocess.run(sys.argv[1:]).returncode)
 " codex review $UNCOMMITTED_FLAG > "$REPORT_FILE" 2>&1
+fi
 
 # === [新增防禦] 檢查是否發生 API 配額、Git 錯誤或底層崩潰 ===
 if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
@@ -183,6 +217,8 @@ if ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceede
     echo "🟢 [SUCCESS] 您現在可以順利結案了！"
     record_transcript "PASS"
     echo "0" > "$COUNT_FILE" # 通過後歸零
+    echo "{\"last_action\": \"Codex Loop 通過審查\"}" > /tmp/codex-loop-state.json
+    if command -v task-orchestrator >/dev/null 2>&1; then task-orchestrator done "$TASK_ID" >/dev/null 2>&1 || true; fi
     exit 0
 else
     FAIL_COUNT=$((FAIL_COUNT + 1))
@@ -193,7 +229,7 @@ else
     # === 🔀 智慧分拆功能 (Smart File Splitter) ===
     # 從 Codex 報告中解析被點名的問題檔案 (格式: → scripts/foo.py:42-50)
     if [ "$BASE_COMMIT" = "staged" ]; then
-        FLAGGED_BASENAMES=$(grep -oiE "\b[a-zA-Z0-9_-]+\.(py|sh|js|ts)\b" "$REPORT_FILE" | sort -u || true)
+        FLAGGED_BASENAMES=$(grep -oiE "\b[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+\b" "$REPORT_FILE" | sort -u || true)
         CLEAN_FILES=""
         DIRTY_FILES=""
         while read -r f; do
@@ -208,14 +244,21 @@ else
 
         if [ -n "$CLEAN_FILES" ]; then
             echo ""
-            echo "✅ [智慧分拆] 以下檔案 Codex 未點名，提前蓋章："
+            echo "✅ [智慧分拆] 以下檔案 Codex 未點名，提前蓋章並立即提交："
             COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
+            CLEAN_ARRAY=()
             echo "$CLEAN_FILES" | while read -r f; do
                 [ -z "$f" ] || [ ! -f "$f" ] && continue
                 echo "  🏅 $f"
                 python3 "$STAMPER" "$f" "$COMMIT_ID" || true
                 git add "$f"
+                CLEAN_ARRAY+=("$f")
             done
+            # 立即提交乾淨檔案，避免下輪審查還是包含它們
+            if [ ${#CLEAN_ARRAY[@]} -gt 0 ]; then
+                git commit -m "chore: [Codex-Split-PASS] auto-stamp clean files from smart splitter" --no-verify -q -- "${CLEAN_ARRAY[@]}" && \
+                    echo "🟢 [智慧分拆] 乾淨檔案已自動提交，下輪審查只需面對問題檔案。"
+            fi
             echo ""
             echo "⚠️  以下問題檔案將繼續迭代："
             echo "$DIRTY_FILES" | while read -r ff; do [ -n "$ff" ] && echo "  ❌ $ff"; done
@@ -234,8 +277,10 @@ else
             { echo "[STRICT SCOPE LOCK: Ignore all IDE context and other files] This is the 3rd failed attempt. The AI Agent is stuck. Please read following git diff and provide the PERFECT, COMPLETE, AND FULLY CORRECTED code for all files with issues. You MUST output the ENTIRE file content so the Agent can just copy and paste it to fix the problems. DIFF:"; git diff "$BASE_COMMIT"; } | codex exec -
         fi
         echo "0" > "$COUNT_FILE" # 重置計數器以防無限累積
-        echo "👆 ================================================================="
-        echo "❌ [系統指令] 上方是 Codex 提供的終極參考解法。請 (Agent) 參考修改現有的檔案。⚠️ 注意：如果您或 Sir 發現 Codex 的解法本身有 Bug，您【完全被允許】手動修正它，不需要 100% 盲從。修改完成後，再次呼叫 \`codex-loop\` 過關。"
+        echo '👆 ================================================================='
+        echo '❌ [系統指令] 上方是 Codex 提供的終極參考解法。請 (Agent) 參考修改現有的檔案。⚠️ 注意：如果您或 Sir 發現 Codex 的解法本身有 Bug，您【完全被允許】手動修正它，不需要 100% 盲從。修改完成後，再次呼叫 `codex-loop` 過關。'
+        echo "{\"last_action\": \"Codex Loop 提供終極參考解法，等待 Agent 修正\"}" > /tmp/codex-loop-state.json
+        if command -v task-orchestrator >/dev/null 2>&1; then task-orchestrator retry "$TASK_ID" >/dev/null 2>&1 || true; fi
         exit 1
     else
         echo "👇 =============== [REVIEW REPORT] ==============="
@@ -244,6 +289,8 @@ else
         echo "❌ 任務被 Codex-Loop 鎖死！(這是第 $FAIL_COUNT/3 次退回)。"
         echo "👉 系統要求您 (Agent) 必須閱讀上方建議修改程式碼，並再次呼叫 \`codex-loop\` 直到 PASS 才能繼續執行下去。"
         record_transcript "FAIL"
+        echo "{\"last_action\": \"Codex Loop 提出了修改建議，等待 Agent 修正\"}" > /tmp/codex-loop-state.json
+        if command -v task-orchestrator >/dev/null 2>&1; then task-orchestrator retry "$TASK_ID" >/dev/null 2>&1 || true; fi
         exit 1
     fi
 fi
