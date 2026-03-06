@@ -25,8 +25,8 @@ if [ ! -f "$COUNT_FILE" ]; then
 fi
 FAIL_COUNT=$(cat "$COUNT_FILE")
 
-# 定義需要被審查的程式碼副檔名 (支援 Git 可能產生的路徑引號)
-CODE_EXT_REGEX="\.\(py\|js\|ts\|html\|css\|sh\|cpp\|c\|go\|rs\|java\)\"\?$"
+# 定義需要被審查的程式碼副檔名 (EERE 格式，支援中文字元與特殊路徑)
+CODE_EXT_REGEX="\.(py|js|ts|html|css|sh|cpp|c|go|rs|java)$"
 
 # === 👁️ [Muse Subconscious Observer] ===
 record_transcript() {
@@ -69,10 +69,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [ "$#" -ge 1 ]; then
+if [ "$#" -ge 1 ] && [ "$1" != "staged" ]; then
     BASE_COMMIT="$1"
     echo "📊 審查範圍：自 $BASE_COMMIT 以來的變更"
-    FILES=$(git -c core.quotepath=false diff --name-only "$BASE_COMMIT" | grep -i "$CODE_EXT_REGEX" || true)
+    FILES=$(git -c core.quotepath=false diff --name-only "$BASE_COMMIT" | grep -Ei "$CODE_EXT_REGEX" || true)
 
     if [ -z "$FILES" ]; then
         echo "✅ [SKIPPED] 未偵測到目標程式碼檔案（.py, .js 等）的變更，無痛放行。"
@@ -84,7 +84,7 @@ if [ "$#" -ge 1 ]; then
     DIFF_CMD="git diff $BASE_COMMIT"
 else
     echo "📊 審查範圍：已暫存的變更 (Staged changes)"
-    FILES=$(git -c core.quotepath=false diff --cached --name-only | grep -i "$CODE_EXT_REGEX" || true)
+    FILES=$(git -c core.quotepath=false diff --cached --name-only | grep -Ei "$CODE_EXT_REGEX" || true)
 
     if [ -z "$FILES" ]; then
         echo "✅ [SKIPPED] 未偵測到目標程式碼檔案（.py, .js 等）的變更，無痛放行。"

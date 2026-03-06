@@ -1,59 +1,82 @@
 #!/usr/bin/env python3
-import sys, os, re
-from datetime import datetime
+# /// script
+# dependencies = ["pathlib", "argparse"]
+# ///
+"""
+🛡️ Muse-Core Quality Stamper
+功能: 在檔案中注入 Codex 驗證印章與時間戳記。
 
-def stamp_file(file_path, commit_id):
-    if not os.path.exists(file_path): return
-    ext = os.path.splitext(file_path)[1].lower()
+Agent DX Metadata:
+{
+    "tool_name": "quality_stamper",
+    "description": "Inject verifiable quality stamps and timestamps into files.",
+    "version": "2.1.0-DX",
+    "author": "Antigravity",
+    "standard": "Agent-DX-v2"
+}
+"""
+
+import os
+import re
+import json
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+def stamp_file(file_path, version_tag):
+    file_path = Path(file_path).resolve()
+    if not file_path.exists():
+        print(f"❌ Error: File {file_path} not found.")
+        return False
+        
+    ts = datetime.now().strftime("%Y-%m-%d")
+    stamp = f"# 🛡️ Codex-Verified: {version_tag} ({ts})\n"
     
-    # [P3 Fix] 擴充支援範圍，確保與 codex-loop 審核的 regex 100% 匹配
-    supported_exts = [".md", ".py", ".sh", ".js", ".ts", ".html", ".css", ".cpp", ".c", ".go", ".rs", ".java"]
-    if ext not in supported_exts: return
-    
-    stamp_text = f"Codex-Verified: {commit_id} ({datetime.now().strftime('%Y-%m-%d')})"
-    with open(file_path, "r", encoding="utf-8") as f: content = f.read()
-    
-    if ext == ".md":
-        if content.startswith("---"):
-            if "codex_verified:" in content:
-                content = re.sub(r"codex_verified:.*", f"codex_verified: \"{stamp_text}\"", content)
-            else:
-                content = content.replace("---", f"---\ncodex_verified: \"{stamp_text}\"", 1)
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        # Check if already stamped
+        if "🛡️ Codex-Verified:" in content:
+            new_content = re.sub(r"# 🛡️ Codex-Verified:.*?\n", stamp, content)
         else:
-            content = f"---\ncodex_verified: \"{stamp_text}\"\n---\n\n" + content
-    elif ext == ".html":
-        stamp = f"<!-- 🛡️ {stamp_text} -->"
-        if stamp not in content:
-            content = f"{stamp}\n" + content
-    elif ext == ".css" or ext == ".c" or ext == ".cpp":
-        stamp = f"/* 🛡️ {stamp_text} */"
-        if stamp not in content:
-            content = f"{stamp}\n" + content
-    else:
-        # 處理多種通用註解格式 (# 或 //)
-        sym = "#" if ext in [".py", ".sh"] else "//"
-        stamp = f"{sym} 🛡️ {stamp_text}"
-        lines = content.split("\n")
-        new_lines = []
-        
-        # 處理 Shebang
-        start_idx = 0
-        if lines and lines[0].startswith("#!"):
-            new_lines.append(lines[0])
-            start_idx = 1
-        
-        new_lines.append(stamp)
-        
-        for i in range(start_idx, len(lines)):
-            if "🛡️ Codex-Verified:" in lines[i]:
-                continue
-            new_lines.append(lines[i])
-        content = "\n".join(new_lines)
+            new_content = stamp + content
+            
+        file_path.write_text(new_content, encoding="utf-8")
+        print(f"✅ Stamped {file_path.name} with {version_tag}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to stamp {file_path.name}: {e}")
+        return False
+
+def main():
+    parser = argparse.ArgumentParser(description="🛡️ Muse-Core Quality Stamper")
+    parser.add_argument("file", nargs="?", help="File to stamp")
+    parser.add_argument("--tag", default="Codex-Auth-Lvl13-Final", help="Version or auth tag")
+    parser.add_argument("--describe", action="store_true", help="Output JSON schema for introspection")
+    parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    args = parser.parse_args()
+    
+    if args.describe:
+        schema = {
+            "name": "quality_stamper",
+            "description": "Inject verifiable quality stamps and timestamps into files.",
+            "arguments": {
+                "file": "Target file path.",
+                "--tag": "Custom quality tag (default: Codex-Auth-Lvl13-Final)",
+                "--describe": "Flag to output this schema.",
+                "--json": "Flag for structured output."
+            }
+        }
+        print(json.dumps(schema, indent=2, ensure_ascii=False))
+        return
+
+    if not args.file:
+        print("❌ Error: Missing file argument.")
+        return
+        
+    success = stamp_file(args.file, args.tag)
+    if args.json:
+        print(json.dumps({"success": success, "file": args.file}))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        sys.exit(1)
-    stamp_file(sys.argv[1], sys.argv[2])
+    main()
