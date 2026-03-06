@@ -107,6 +107,21 @@ print_review_diff() {
     fi
 }
 
+# [P9 Fix] 安全印出 Review 報告，過長時自動截斷以保護 Token
+print_truncated_report() {
+    local file="$1"
+    local max_chars=10000
+    local size
+    size=$(wc -c < "$file" | awk '{print $1}')
+    if [ -n "$size" ] && [ "$size" -gt "$max_chars" ]; then
+        echo "✂️  [NOTICE] 報告內容過長 ($size bytes)，已自動截斷前段內容以節省 Token！完整內容請見 $file"
+        echo "..."
+        tail -c "$max_chars" "$file"
+    else
+        cat "$file"
+    fi
+}
+
 STASHED=0
 
 cleanup() {
@@ -232,7 +247,7 @@ fi
 # === [新增防禦] 檢查是否發生 API 配額、Git 錯誤或底層崩潰 ===
 if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
     echo "⚠️  [SYSTEM ERROR] 系統異常：偵測到 API 配額用盡、Git 錯誤或指令不合法，審查被迫中斷！"
-    cat "$REPORT_FILE"
+    print_truncated_report "$REPORT_FILE"
     exit 1
 fi
 
@@ -268,7 +283,7 @@ if ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceede
         fi
     done
 
-    cat "$REPORT_FILE"
+    print_truncated_report "$REPORT_FILE"
     echo "🟢 [SUCCESS] 您現在可以順利結案了！"
     record_transcript "PASS"
     echo "0" > "$COUNT_FILE" # 通過後歸零
@@ -351,7 +366,7 @@ else
         exit 1
     else
         echo "👇 =============== [REVIEW REPORT] ==============="
-        cat "$REPORT_FILE"
+        print_truncated_report "$REPORT_FILE"
         echo "👆 ================================================"
         echo "❌ 任務被 Codex-Loop 鎖死！(這是第 $FAIL_COUNT/3 次退回)。"
         echo "👉 系統要求您 (Agent) 必須閱讀上方建議修改程式碼，並再次呼叫 \`codex-loop\` 直到 PASS 才能繼續執行下去。"
