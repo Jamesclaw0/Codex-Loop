@@ -85,6 +85,7 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 `codex-loop` 的設計理念是「極度解耦」，它與以下工具完美聯動：
 - **Git Worktree / 並行開發**：當您派出多個「分身 Agent」同時在隔離環境工作時，`codex-loop` 是唯一的入關閘門，確保任何分身的產出都符合全局品質標準。
 - **Codex-Worker (兵營管理)**：內建 API 排隊鎖，完美支援多 Agent 同時爭搶 API 配額的極端場景。
+- **Serena / OpenClaw 原生相容 [NEW]**：專案內建 `.serena/` 設定檔與 Git 忽略規則，原生支援最新的 MCP Agent 框架，讓 AI 能更順暢地執行此品質閘門。
 
 ---
 
@@ -165,6 +166,7 @@ python3 parallel_fix.py '<task_description>' [part_1,part_2,...]
 `codex-loop` is built to be modular and works architecturally with:
 - **Git Worktree / Parallel Dev**: When spawning multiple "Sub-Agents" in isolated worktrees, `codex-loop` acts as the mandatory gatekeeper for every single contribution.
 - **Codex-Worker (Orchestration)**: Built-in global API queuing locks prevent rate-limit crashes during intensive multi-agent development.
+- **Serena / OpenClaw Native Support [NEW]**: Includes built-in `.serena/` configurations, enabling out-of-the-box compatibility with next-gen MCP agent frameworks for smoother interactions.
 
 ---
 Built by [Sir] & [Muse-Core]
