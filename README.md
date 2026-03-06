@@ -61,8 +61,10 @@ AI 代理（如 Devin、OpenClaw 或 Gemini）**不會**在寫完程式碼後主
 
 ### 🗡️ 并行修復模式 (*parallel-fix) [NEW]
 `codex-loop` 正式擴充【定制分身多開】模式，透過内建腳本 `parallel_fix.py` 實現:
-- **自動建立** N 個 Git Worktree 分身剫本
-- **並行執行** 不同子任務
+- **自動建立** N 個 Git Worktree 分身副本
+- **嚴格環境隔離 (Strict Scope Lock)** 完全無視 IDE 雜訊，防止跨工作區的報錯干擾
+- **雙模型自動派發 (Multi-Agent Dispatcher Protocol)** 根據任務複雜度，背景無頭自動分發給 Codex (高複雜) 或 Gemini CLI (中低複雜)
+- **並行執行** 不同子任務，互不干擾
 - **強制自審** 每層分身必需經 `codex-loop` 審核才能進入收割
 - **智能收割** 合并所有經認證的分支，衝突時保留未合併分支以便手動恢復
 
@@ -132,6 +134,8 @@ By adding the above instruction to your Agent, your project gains the ability to
 ### 🗡️ Parallel Fix Mode (*parallel-fix) [NEW]
 `codex-loop` now ships a `parallel_fix.py` script for **parallel task orchestration**:
 - Automatically spawns N isolated Git Worktrees
+- **Strict Scope Lock**: Completely ignores global/IDE noise, preventing cross-workspace contamination
+- **Multi-Agent Dispatcher Protocol**: Automatically routes headless background workers to Codex (high complexity) or Gemini CLI (low/medium complexity)
 - Executes subtasks truly concurrently
 - Every worker branch **must pass `codex-loop`** before harvest
 - Smart merge: conflict detection, branch preservation for manual recovery
