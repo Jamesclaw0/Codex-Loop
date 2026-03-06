@@ -20,6 +20,8 @@
   - **檔案防撞鎖相容**：完美相容於 `codex-worker` 兵營管理系統，防止多 Agent 開發同一個 Repo 時的檔案覆寫衝突。
 - **本地 Linter 支援 (Local Linter)**：內建 Python `ruff` 與 `py_compile` 語法預檢，在呼叫昂貴 LLM 前先過濾基礎錯誤。
 - **🛡️ 品質驗證蓋章 (Codex-Verified)**：審查通過後自動在檔案頂部注入隱藏的品質章節，作為最終合併的信任憑證。
+- **🔓 寬容審查模式 (Inclusive Review) [NEW]**: 現在支援在 Staged 模式下將未暫存 (Unstaged) 與未追蹤 (Untracked) 的工作區代碼一併納入 Codex 審查的上下文（提供更完整的全局視野），但底層具備嚴格隔離防護，**絕對不會**誤將 WIP 代碼牽連進 commit 中。
+- **✂️ 防護截斷機制 (Report Truncation) [NEW]**: 當 Codex 回傳的審查報告過長（如超過 10,000 字元）時，系統會自動智慧截斷並僅保留結尾最重要的 P1/P2/Bug 建議區塊，防止 AI Agent 的 Context Window 被巨量文字塞爆，大幅節省 Token 成本。
 - **Resilient Path (路徑魯棒性修復) [NEW]**: 智慧處理 Git 轉義路徑，完美支援包含中文字元、空格或特殊符號的檔案路徑，解決 Linter 解析失敗的痛點。
 - **Serena 語義化支援 [NEW]**: 整合 Serena 工具規約，支援精確的符號級（Symbol-level）搜尋、重構與引用分析，讓 Agent 具備更強大的代碼感知能力。
 - **🧲 物理強制 Add 攔截 [NEW]**: 如果 Agent 忘記 `git add` 就直接呼叫審查，`codex-loop` 會立即偵測到工作區存在**未暫存的程式碼檔案**，並以 **Exit 1 + 大聲警報** 拒絕任何審查，強迫 Agent 先補做 `git add` 再重新送審。徹底消滅「審查到空暫存區卻回報 PASS」的幽靈漏洞。
@@ -105,6 +107,8 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 - **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
 - **Verification Stamping**: Automatically injects `Codex-Verified` stamps into files that pass the gate.
 - **🛡️ Quality Gate Stamping**: [NEW] Injects a verification hash into successful files, serving as a trust certificate for merges.
+- **🔓 Inclusive Review Mode [NEW]**: Safely includes Staged, Unstaged, and Untracked files in the Codex review context for a holistic codebase understanding, while strictly guaranteeing that your WIP (unstaged) code is **never** accidentally committed.
+- **✂️ Token-Saving Truncation [NEW]**: Automatically truncates excessively long Codex review reports (e.g., > 10,000 chars) while preserving critical P1/P2/Bug feedback at the tail end. This prevents your AI Agent's Context Window from exploding and saves massive amounts of Tokens.
 - **Resilient Path (Robustness Fix)**: Smart handling of Git-escaped paths, perfectly supporting file paths with Chinese characters, spaces, or special symbols.
 - **Serena Semantic Support [NEW]**: Integrated Serena tool protocols, supporting precise symbol-level search, refactoring, and reference analysis for superior code awareness.
 - **🧲 Physical Add Guard [NEW]**: If an agent calls review without `git add`, `codex-loop` detects unstaged code files and exits immediately with `Exit 1 + loud error`. This closes the "reviewed empty staging area but reported PASS" ghost vulnerability that silently bypassed quality gates.
