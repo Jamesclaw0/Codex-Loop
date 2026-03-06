@@ -1,5 +1,5 @@
 #!/bin/bash
-# 🛡️ Codex-Verified: e19f879 (2026-03-06)
+# 🛡️ Codex-Verified: 4c3b1ac (2026-03-06)
 # 🛡️ Codex-Loop (Lvl 13 Quality Guard: Ping-Pong Loop for Code)
 # Muse-Core 的強制跨模型程式碼防護鎖 (內建 5 次熔斷直接給 Code 機制)
 
@@ -72,7 +72,7 @@ trap cleanup EXIT
 if [ "$#" -ge 1 ]; then
     BASE_COMMIT="$1"
     echo "📊 審查範圍：自 $BASE_COMMIT 以來的變更"
-    FILES=$(git diff --name-only "$BASE_COMMIT" | grep -i "$CODE_EXT_REGEX" || true)
+    FILES=$(git -c core.quotepath=false diff --name-only "$BASE_COMMIT" | grep -i "$CODE_EXT_REGEX" || true)
 
     if [ -z "$FILES" ]; then
         echo "✅ [SKIPPED] 未偵測到目標程式碼檔案（.py, .js 等）的變更，無痛放行。"
@@ -84,7 +84,7 @@ if [ "$#" -ge 1 ]; then
     DIFF_CMD="git diff $BASE_COMMIT"
 else
     echo "📊 審查範圍：已暫存的變更 (Staged changes)"
-    FILES=$(git diff --cached --name-only | grep -i "$CODE_EXT_REGEX" || true)
+    FILES=$(git -c core.quotepath=false diff --cached --name-only | grep -i "$CODE_EXT_REGEX" || true)
 
     if [ -z "$FILES" ]; then
         echo "✅ [SKIPPED] 未偵測到目標程式碼檔案（.py, .js 等）的變更，無痛放行。"
@@ -112,7 +112,12 @@ echo "$FILES" | awk '{print "  - "$0}'
 
 # [Optimization] 本地 Linter 先行 (使用 ruff 或 py_compile)，節省 Token
 # 使用 Heredoc 餵給 while 以確保支援 Bash 3.2 且 exit 1 能正常終止主腳本
-while read -r f; do
+# [P1 Fix] 智慧處理路徑：優先嘗試原始路徑，若不存在則嘗試去除 git 引號
+while read -r f_raw; do
+    f="$f_raw"
+    if [ ! -f "$f" ]; then
+        f=$(echo "$f_raw" | sed 's/^"//;s/"$//')
+    fi
     if [ -n "$f" ] && [[ "$f" == *.py ]] && [ -f "$f" ]; then
         if command -v ruff > /dev/null 2>&1; then
             if ! ruff check "$f" --quiet; then
@@ -136,15 +141,13 @@ done <<< "$FILES"
 
 # 實際呼叫 Codex API 進行 Review
 # === 🔒 [全域鎖] 防止多 Agent 同時呼叫 Codex 導致 API 配額競爭 ===
-# 使用 Python fcntl 實作 macOS 相容的 atomic 鎖定，自動排隊等待
-SCOPE_PROMPT="[STRICT SCOPE LOCK] CRITICAL: You MUST ONLY review the specific code changes shown in the provided git diff. You MUST COMPLETELY IGNORE any other files, IDE open tabs, untracked files, or unrelated projects that might be present in your environment or context. Focus strictly on the diff."
 
 python3 -c "
 import fcntl, sys, subprocess
 with open('/tmp/codex_loop_global.lock', 'w') as f:
     fcntl.flock(f, fcntl.LOCK_EX)
     sys.exit(subprocess.run(sys.argv[1:]).returncode)
-" codex review $UNCOMMITTED_FLAG "$SCOPE_PROMPT" > "$REPORT_FILE" 2>&1
+" codex review $UNCOMMITTED_FLAG > "$REPORT_FILE" 2>&1
 
 # === [新增防禦] 檢查是否發生 API 配額、Git 錯誤或底層崩潰 ===
 if grep -qiE "fatal:|quota_exhausted|api error|usage:" "$REPORT_FILE"; then
@@ -160,8 +163,14 @@ if ! grep -qiE "\[P[0-9]\]|\[Bug\]" "$REPORT_FILE" && ! grep -qiE "Quota exceede
     
     COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
     
-    # [P3 Fix] 使用 while read 確保含有空格的檔名不會被切斷
-    echo "$FILES" | while read -r f; do
+    # [P3 Fix] 使用 -c core.quotepath=false 獲取原始路徑，確保含有空格或中文字元的檔名不會被切斷
+    echo "$FILES" | while read -r f_raw; do
+        # 優先嘗試原始路徑，若不存在則嘗試去除引號（雙重防禦）
+        f="$f_raw"
+        if [ ! -f "$f" ]; then
+            f=$(echo "$f_raw" | sed 's/^"//;s/"$//')
+        fi
+
         if [ -n "$f" ] && [ -f "$f" ]; then
             python3 "$STAMPER" "$f" "$COMMIT_ID" || true
             # [P2 Fix] 如果是暫存模式，標註後必須重新 add 以確保標記進入 commit
