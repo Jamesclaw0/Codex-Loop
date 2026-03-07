@@ -7,7 +7,8 @@
     - Automatically filters for code changes (Python, JS, TS, etc.).
     - Isolates staged changes from dirty workspaces using Git Stash.
     - Truncates and retries reviews until 🟢 `[SUCCESS]`.
-    - **5-Strike Mechanism**: If an agent fails 5 times, it triggers a "Final Instruction Mode" to force-output the correct solution.
+    - **3-Strike Mechanism**: If an agent fails 3 times, it triggers a "Final Instruction Mode" to force-output the correct solution, preventing endless "advice" loops.
+    - **Repetition Guard**: Detects if the AI is giving the same suggestions and breaks the loop.
 - **Trigger**: Run `codex-loop` before any code commit or task completion.
 
 ## 📂 Structure

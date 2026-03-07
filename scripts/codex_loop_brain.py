@@ -2,6 +2,7 @@
 import sys
 import os
 import json
+import hashlib
 from pathlib import Path
 from datetime import datetime
 
@@ -13,8 +14,14 @@ from core.patcher import SafePatcher
 from core.reporter import Reporter
 
 # 配置
-KB_DIR = os.getenv("MUSE_CORE_KB_DIR", "/Users/jameschen/Downloads/obsidian/知識庫")
-PROMPT_TEMPLATE = Path(KB_DIR) / "01_Operations/Templates/developer_prompt_v2.md"
+# 優先使用環境變數，否則自動判斷 Repo 根目錄 (scripts/.. 為 repo root)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+KB_DIR = os.getenv("MUSE_CORE_KB_DIR", str(REPO_ROOT))
+
+# 優先尋找 Repo 內的模板，其次尋找 KB 目錄下的模板
+PROMPT_TEMPLATE = REPO_ROOT / "scripts/Templates/developer_prompt_v2.md"
+if not PROMPT_TEMPLATE.exists():
+    PROMPT_TEMPLATE = Path(KB_DIR) / "01_Operations/Templates/developer_prompt_v2.md"
 
 class CodexLoopV2:
     """
@@ -31,16 +38,49 @@ class CodexLoopV2:
         # 1. 初始化 Git 管理員
         self.git = GitManager()
         
-        # 2. 初始化 LLM 客戶端 (傳遞鎖定檔路徑)
-        self.llm = LLMClient(lock_file=Path(self.git.git_dir) / "codex_loop_v2.lock" if self.git.git_dir else None)
+        # 🔗 基於絕對路徑的雜湊防衝突 (P16 Lesson 118: Use absolute-git-dir)
+        repo_path = str(self.git.git_dir).encode("utf-8")
+        repo_id = hashlib.md5(repo_path).hexdigest()[:8]
         
-        # 3. 初始化其餘組件
+        # 2. 初始化組件 (使用隔離路徑)
+        self.llm = LLMClient(lock_file=Path(f"/tmp/codex_loop_{repo_id}.lock"))
         self.linter = Linter()
         self.patcher = SafePatcher(lock_dir=self.git.git_dir or "/tmp")
         self.reporter = Reporter()
         
-        # 報告路徑
-        self.report_path = Path(self.git.git_dir) / "codex_loop_report.md" if self.git.git_dir else Path("/tmp/codex_loop_report.md")
+        # 🔗 重複偵測器 (Repetition Guard)
+        self.history_hashes = set()
+        self.max_strikes = 3
+        
+        # 報告與補丁路徑 (符合 P16 Sandbox 定義)
+        self.report_file = Path(f"/tmp/codex_loop_report_{repo_id}.md")
+        self.patch_file = Path(f"/tmp/codex_auto_{repo_id}.patch")
+        self.transcripts_dir = Path(f"/tmp/codex_transcripts_{repo_id}")
+        self.transcripts_dir.mkdir(parents=True, exist_ok=True)
+        
+    def _get_lessons(self):
+        """獲取跨專案與全域教訓。"""
+        lessons = []
+        sub_file = Path(KB_DIR) / "00_System_Knowledge/01_Operations/04_Subconscious_Memory.md"
+        if sub_file.exists():
+            content = sub_file.read_text(encoding="utf-8")
+            if "<muse_subconscious>" in content:
+                extracted = content.split("<muse_subconscious>")[1].split("</muse_subconscious>")[0]
+                lessons.append(f"--- Global Subconscious ---\n{extracted.strip()}")
+        
+        local_lessons = Path(self.git.project_root) / ".codex_lessons.md"
+        if local_lessons.exists():
+            lessons.append(f"--- Project Lessons ---\n{local_lessons.read_text(encoding='utf-8')}")
+        
+        return "\n\n".join(lessons)
+
+    def _export_report(self, data):
+        """導出雜湊隔離的報告。"""
+        try:
+            self.reporter.write_markdown_report(self.report_file, data)
+            # 同步全域報告 (供 UI)
+            Path("/tmp/codex_loop_report.md").write_text(self.report_file.read_text(), encoding="utf-8")
+        except: pass
 
     def _get_lessons(self):
         """獲取跨專案與全域教訓。"""
@@ -61,49 +101,71 @@ class CodexLoopV2:
     def run_review(self, manual_files=None):
         print(f"🔍 [v2.0] Mode: {self.mode} | Scope: {self.scope}")
         
-        # Step 1: 獲取變更
-        if manual_files:
-            code_files = [f for f in manual_files if Path(f).is_file()]
-            diff_text = ""
-            for f in code_files:
-                try:
-                    lines = Path(f).read_text(encoding="utf-8").splitlines()
-                    diff_text += f"\ndiff --git a/{f} b/{f}\nnew file mode 100644\n--- /dev/null\n+++ b/{f}\n@@ -0,0 +1,{len(lines)} @@\n"
-                    diff_text += "\n".join([f"+{line}" for line in lines]) + "\n"
-                except: pass
-        else:
-            files, diff_text = self.git.get_changes(self.scope, self.base_ref)
-            code_files = [f for f in files if f.endswith(".py")]
+        # 🛡️ 修復子目錄執行問題：切換至專案根目錄
+        original_cwd = os.getcwd()
+        os.chdir(self.git.project_root)
         
-        if not code_files and not diff_text.strip():
-            print("✅ [SKIPPED] No significant changes detected.")
-            return True
+        strike = 0
+        try:
+            while strike < self.max_strikes:
+                strike += 1
+                print(f"🚀 [Round {strike}/{self.max_strikes}] Initiating Audit...")
+                
+                if manual_files:
+                    code_files = [str(Path(f).absolute()) for f in manual_files if Path(f).is_file()]
+                    diff_text = "Manual Review Mode"
+                else:
+                    files, diff_text = self.git.get_changes(self.scope, self.base_ref)
+                    code_files = [f for f in files if f.endswith(".py")]
+                
+                if not code_files and not diff_text.strip():
+                    print("✅ [SKIPPED] No significant changes.")
+                    return True
 
-        # Step 2: 靜態分析
-        linter_json = self.linter.scan(code_files)
-        
-        # Step 3: LLM 深度審查 (注入教訓)
-        prompt = PROMPT_TEMPLATE.read_text(encoding="utf-8") if PROMPT_TEMPLATE.exists() else "Review this diff:"
-        lessons = self._get_lessons()
-        
-        full_prompt = f"{prompt}\n\nMANDATORY LESSONS:\n{lessons}\n\nLINTER_HINTS:\n{linter_json}\n"
-        
-        print("🧠 Calling LLM for Cognitive Review...")
-        data, raw_output = self.llm.ask(full_prompt, diff_text)
-        
-        # Step 4: 結果呈現與報告
-        if data.get("status") == "FAIL":
-            print(self.reporter.render_ansi_table(data.get("violations", [])))
-            self.reporter.write_markdown_report(self.report_path, data)
+                linter_json = self.linter.scan(code_files)
+                prompt = PROMPT_TEMPLATE.read_text(encoding="utf-8") if PROMPT_TEMPLATE.exists() else "Review:"
+                lessons = self._get_lessons()
+                full_prompt = f"{prompt}\n\nLESSONS:\n{lessons}\n\nLINTER:\n{linter_json}\n"
+                
+                # 🛡️ Final Strike 模式：強制要求解決方案 (P16 Request: 3次沒過就要提供正確的code)
+                if strike == self.max_strikes:
+                    full_prompt += "\n⚠️ [CRITICAL] FINAL STRIKE: This is your last chance. You MUST provide a definitive, compile-ready patch (Unified Diff) for all remaining violations. No more advice. Fix everything NOW.\n"
+                
+                print(f"🧠 Calling LLM for Cognitive Review (Strike {strike})...")
+                data, raw_output = self.llm.ask(full_prompt, diff_text)
+                
+                # 📜 存檔原始轉錄 (協助後續自省)
+                ts_file = self.transcripts_dir / f"round_{strike}_{datetime.now().strftime('%H%M%S')}.log"
+                ts_file.write_text(raw_output, encoding="utf-8")
+                
+                # 🛡️ Repetition Guard (偵測是否原地打轉)
+                # 雜湊 violations 內容比雜湊原始輸出更能偵測「換句話說但建議相同」的情況
+                suggestions_hash = hashlib.md5(json.dumps(data.get("violations", []), sort_keys=True).encode()).hexdigest()
+                if suggestions_hash in self.history_hashes:
+                    print(f"⚠️ [STUCK] Detected repeated suggestions at Strike {strike}. Breaking to prevent dead-loop.")
+                    self._export_report(data)
+                    return False
+                self.history_hashes.add(suggestions_hash)
+                
+                if data.get("status") == "FAIL":
+                    print(self.reporter.render_ansi_table(data.get("violations", [])))
+                    self._export_report(data)
+                    
+                    if self.apply_patch:
+                        print("🛠️ Applying auto-patches...")
+                        self.patcher.apply(data.get("violations", []))
+                        # 繼續下一輪循環
+                        continue
+                    else:
+                        return False
+                
+                print("🎉 [PASSED] Cognitive security check cleared.")
+                return True
             
-            # Step 5: 自動套用補丁 (若開啟)
-            if self.apply_patch:
-                self.patcher.apply(data.get("violations", []))
-            
-            return False
-        
-        print("🎉 [PASSED] Cognitive security check cleared.")
-        return True
+            print("🎉 [PASSED] Cognitive security check cleared.")
+            return True
+        finally:
+            os.chdir(original_cwd)
 
 if __name__ == "__main__":
     import argparse
@@ -125,5 +187,4 @@ if __name__ == "__main__":
         scope = "staged"
         
     engine = CodexLoopV2(scope=scope, apply_patch=args.apply, base_ref=args.base)
-    # 若為 manual 模式，手動傳入檔案清單 (需調整 engine.run_review)
     sys.exit(0 if engine.run_review(args.files) else 1)

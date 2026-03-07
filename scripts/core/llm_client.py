@@ -28,20 +28,35 @@ class LLMClient:
                     timeout=180
                 )
             
-            # 使用更穩裝的 JSON 區塊選取模式
+            # 🛡️ 魯棒性 JSON 提取 (符合 Lvl 16 Lessons)
             output = res.stdout + res.stderr
             try:
+                # 優先尋找最後一個 JSON 區塊，避免日誌干擾
                 if "```json" in output:
-                    json_str = output.split("```json")[1].split("```")[0].strip()
+                    json_blocks = output.split("```json")
+                    json_str = json_blocks[-1].split("```")[0].strip()
                 elif "{" in output:
-                    json_str = "{" + output.split("{", 1)[1].rsplit("}", 1)[0] + "}"
+                    # 選取最後一個可能的 JSON 對象
+                    start_idx = output.rfind("{")
+                    end_idx = output.rfind("}") + 1
+                    if start_idx < end_idx:
+                        json_str = output[start_idx:end_idx]
+                    else:
+                        json_str = output.strip()
                 else:
                     json_str = output.strip()
                 
-                return json.loads(json_str), output
-            except (json.JSONDecodeError, IndexError):
-                # 備援：若非 JSON，則包裝為失敗狀態
-                return {"status": "FAIL", "summary": "LLM output was not valid JSON.", "violations": []}, output
+                data = json.loads(json_str)
+                # 驗證 Schema 合規性
+                if not isinstance(data, dict) or "status" not in data:
+                    raise ValueError(f"Missing required 'status' field in {data}")
+                
+                return data, output
+            except (json.JSONDecodeError, IndexError, ValueError) as e:
+                # 🛡️ 失敗時輸出原始資訊以便微調
+                print(f"⚠️ [JSON_PARSE_ERROR] {e}")
+                print(f"--- RAW OUTPUT START ---\n{output}\n--- RAW OUTPUT END ---")
+                return {"status": "FAIL", "summary": f"JSON parsing error: {e}", "violations": []}, output
                 
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             return {"status": "FAIL", "summary": f"LLM client error: {e}", "violations": []}, str(e)

@@ -6,24 +6,24 @@ class Reporter:
 
     @staticmethod
     def render_ansi_table(violations):
-        """繪製終端視覺表格。"""
+        """繪製終端視覺表格 (含嚴重等級)。"""
         if not violations: return ""
         
-        header = f"\n{'-'*100}\n| {'TYPE':<12} | {'FILE:LINE':<25} | {'REASON & SUGGESTION':<53} |\n{'-'*100}"
+        header = f"\n{'-'*110}\n| {'SEVERITY':<10} | {'TYPE':<12} | {'FILE:LINE':<25} | {'REASON & SUGGESTION':<55} |\n{'-'*110}"
         rows = []
         for v in violations:
+            severity = v.get("severity", "MAJOR")
             loc = f"{v.get('file')}:{v.get('line', 1)}"
-            reason = f"{v.get('reason')}\nSuggestion: {v.get('suggestion')}"
             # 簡單的自動換行處理
-            rows.append(f"| {v.get('type', 'INFO'):<12} | {loc:<25} | {v.get('reason')[:51]:<53} |")
-            rows.append(f"| {'':<12} | {'':<25} | Suggestion: {v.get('suggestion')[:39]:<53} |")
-            rows.append("-" * 100)
+            rows.append(f"| {severity:<10} | {v.get('type', 'INFO'):<12} | {loc:<25} | {v.get('reason')[:53]:<55} |")
+            rows.append(f"| {'':<10} | {'':<12} | {'':<25} | Suggestion: {v.get('suggestion')[:41]:<55} |")
+            rows.append("-" * 110)
         
         return header + "\n" + "\n".join(rows)
 
     @staticmethod
     def write_markdown_report(report_path, data):
-        """寫入精準的 Markdown 結晶報告。"""
+        """寫入精準的 Markdown 結晶報告 (含嚴重等級)。"""
         violations = data.get("violations", [])
         lines = [
             f"# Codex-Loop Audit Report\n",
@@ -33,7 +33,8 @@ class Reporter:
         ]
         
         for v in violations:
-            lines.append(f"### [{v.get('type', 'INFO')}] {v.get('file')}:{v.get('line', 1)}")
+            severity = v.get("severity", "MAJOR")
+            lines.append(f"### [{severity}][{v.get('type', 'INFO')}] {v.get('file')}:{v.get('line', 1)}")
             lines.append(f"- **Reason**: {v.get('reason')}")
             lines.append(f"- **Suggestion**: {v.get('suggestion')}\n")
             if v.get("patch"):

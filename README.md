@@ -65,6 +65,10 @@ graph LR
 - **自主修復機制**：不僅是報告錯誤，更強迫 AI 根據審查報告進行自我修正。
 - **跨模型審核 (Cross-Model Judge)**：利用模型間的認知差異，消除單一模型的盲點。
 - **3 次熔斷 (3-Strike Policy)**：如果 Agent 陷入死循環，工具會自動升級為「終極指導模式」，強制輸出正確解法，確保開發不中斷且節省 Token。
+- **🧠 Lvl 16 硬核加固 (Mission Hardening) [NEW]**:
+  - **物理保險絲 (Safety Fuses)**：內建 180s Timeout、重複偵測器 (Repetition Guard) 與 3-Strike 自主狀態機。
+  - **絕對路徑穩定性 (Absolute Path Stability)**：基於 `git rev-parse --absolute-git-dir` 的雜湊計算，徹底解決 Worktree 路徑漂移 Hash 錯誤。
+  - **轉錄自省存檔 (Transcripts Logging)**：每一輪審查的原始 LLM 轉錄都會存檔至 `/tmp/`，確保開發軌跡可追溯。
 - **雙層防護機制 (Dual-Layer Locks)**：
   - **API 全域排隊鎖**：內建 Python `fcntl` 全域鎖，多個 Agent 同時呼叫審查時會自動排隊，防止 API 配額爆掉（Rate Limit Error）。
   - **檔案防撞鎖相容**：完美相容於 `codex-worker` 兵營管理系統，防止多 Agent 開發同一個 Repo 時的檔案覆寫衝突。
@@ -111,6 +115,10 @@ graph LR
 - **Autonomous Correction**: Forces the AI to fix its own bugs through a feedback loop.
 - **Cross-Model Integrity**: Eliminate model blind spots by using independent judges.
 - **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
+- **🧠 Lvl 16 Mission Hardening [NEW]**:
+  - **Safety Fuses**: 180s Timeout, Repetition Guard, and internal 3-strike state machine.
+  - **Absolute Path Stability**: Multi-worktree hashing based on `absolute-git-dir`.
+  - **Transcript Persistence**: Raw LLM logs saved for auditing.
 - **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
 - **🛁 Git Hygiene Checker [NEW]**: Intelligent pre-flight check that scans for excess untracked files before starting review. Prevents indexing freezes and ensures a clean, predictable review environment.
 - **🧠 Lvl 16.1 Neural Loop Audit [NEW]**:

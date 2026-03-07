@@ -25,36 +25,40 @@ class GitManager:
 
     def get_changes(self, scope="staged", base_ref="HEAD"):
         """
-        獲取變更檔案列表與 Diff 內容。
-        scope: staged, base, all
+        獲取代碼變更。
+        - scope: 'staged', 'base', 'all'
         """
+        def _git_run(args):
+            # 強制在專案根目錄執行，確保路徑解析一致
+            cmd = ["git", "-C", self.project_root] + args
+            return subprocess.check_output(cmd).decode().strip()
+
         try:
             # 1. 檔案過濾與列表獲取
             if scope == "staged":
-                files_cmd = ["git", "diff", "--cached", "--name-only", "--diff-filter=d"]
-                diff_cmd = ["git", "diff", "--cached", "--relative"]
+                files_out = _git_run(["diff", "--cached", "--name-only", "--diff-filter=d"])
+                diff_text = _git_run(["diff", "--cached"])
             elif scope == "base":
-                files_cmd = ["git", "diff", base_ref, "--name-only", "--diff-filter=d"]
-                diff_cmd = ["git", "diff", base_ref, "--relative"]
+                files_out = _git_run(["diff", base_ref, "--name-only", "--diff-filter=d"])
+                diff_text = _git_run(["diff", base_ref])
             else: # all (追蹤中變動 + 未追蹤)
-                files_cmd = ["git", "ls-files", "--modified", "--others", "--exclude-standard"]
                 # 'all' 模式的 diff 需要手動處理未追蹤檔案
-                diff_text = subprocess.check_output(["git", "diff", "HEAD", "--relative"]).decode()
-                untracked_files = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"]).decode().splitlines()
+                diff_text = _git_run(["diff", "HEAD"])
+                untracked_files = _git_run(["ls-files", "--others", "--exclude-standard"]).splitlines()
                 for uf in untracked_files:
-                    if uf.endswith(".py") and Path(uf).is_file():
+                    full_path = Path(self.project_root) / uf
+                    if uf.endswith(".py") and full_path.is_file():
                         try:
-                            lines = Path(uf).read_text(encoding="utf-8").splitlines()
+                            lines = full_path.read_text(encoding="utf-8").splitlines()
                             header = f"\ndiff --git a/{uf} b/{uf}\nnew file mode 100644\n--- /dev/null\n+++ b/{uf}\n@@ -0,0 +1,{len(lines)} @@\n"
                             diff_text += header + "\n".join([f"+{line}" for line in lines]) + ("\n" if lines else "")
                         except: pass
                 
-                all_files = subprocess.check_output(files_cmd).decode().splitlines()
-                code_files = [f for f in all_files if Path(f).is_file()]
+                all_files_out = _git_run(["ls-files", "--modified", "--others", "--exclude-standard"])
+                code_files = [f for f in all_files_out.splitlines() if (Path(self.project_root) / f).is_file()]
                 return code_files, diff_text
 
-            files = subprocess.check_output(files_cmd).decode().splitlines()
-            diff_text = subprocess.check_output(diff_cmd).decode()
+            files = files_out.splitlines()
             return files, diff_text
             
         except subprocess.CalledProcessError as e:
