@@ -27,3 +27,22 @@ class Linter:
                         return res.stdout.strip()
             except Exception: continue
         return "[]"
+
+    def heal(self, files):
+        """執行自動自癒 (Pre-emptive Healing) (Phase 2)。"""
+        if not files: return
+        print(f"🧬 [Self-Healer] Attempting to pre-emptively heal {len(files)} files...")
+        
+        for base in self.paths_to_try:
+            if not base: continue
+            try:
+                cmd_parts = base.split()
+                # 執行 ruff check --fix
+                full_cmd = cmd_parts + ["check", "--fix", "--exit-zero"] + files
+                subprocess.run(full_cmd, capture_output=True, text=True)
+                
+                # 執行 ruff format (確保排版一致)
+                full_cmd_fmt = cmd_parts + ["format"] + files
+                subprocess.run(full_cmd_fmt, capture_output=True, text=True)
+                break
+            except Exception: continue
