@@ -82,22 +82,6 @@ class CodexLoopV2:
             Path("/tmp/codex_loop_report.md").write_text(self.report_file.read_text(), encoding="utf-8")
         except: pass
 
-    def _get_lessons(self):
-        """獲取跨專案與全域教訓。"""
-        lessons = []
-        sub_file = Path(KB_DIR) / "00_System_Knowledge/01_Operations/04_Subconscious_Memory.md"
-        if sub_file.exists():
-            content = sub_file.read_text(encoding="utf-8")
-            if "<muse_subconscious>" in content:
-                extracted = content.split("<muse_subconscious>")[1].split("</muse_subconscious>")[0]
-                lessons.append(f"--- Global Subconscious ---\n{extracted.strip()}")
-        
-        local_lessons = Path(self.git.project_root) / ".codex_lessons.md"
-        if local_lessons.exists():
-            lessons.append(f"--- Project Lessons ---\n{local_lessons.read_text(encoding='utf-8')}")
-        
-        return "\n\n".join(lessons)
-
     def run_review(self, manual_files=None):
         print(f"🔍 [v2.0] Mode: {self.mode} | Scope: {self.scope}")
         
