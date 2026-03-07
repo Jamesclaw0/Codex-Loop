@@ -2,6 +2,44 @@
 
 ![Codex-Loop v2.0 Visual Table](docs/images/visual_table.png)
 
+## 🧩 邏輯架構 (Logic Architecture)
+
+```mermaid
+graph TD
+    subgraph "Codex-Loop: 鋼鐵演化閉環 (Steel Loop)"
+        Start[Agent 程式碼產出] --> Lock[🔒 Codex-Worker: 多 Agent 資源鎖]
+        Lock --> Scan[🔍 GitManager: 精準變更偵測]
+        Scan --> PreCheck[🛁 Linter: 本地靜態預檢]
+        PreCheck --> Review[🧠 LLM 跨模型深度審查]
+        
+        Review -- PASS --> Stamp[🛡️ 品質蓋章 & 自動提交]
+        Review -- FAIL --> Diagnosis[🚨 違規診斷報告]
+        
+        Diagnosis --> TDD[🧪 SafePatcher+: 生成 TDD 復現腳本]
+        TDD --> Memory[💎 MemorySteward: 教訓結晶化]
+        Memory --> Retry[🔁 Agent 根據教訓自我修正]
+        Retry --> Start
+        
+        Stamp --> Done[🎉 代碼主權固化 (Sovereignty)]
+    end
+```
+
+### 🧠 記憶層次與教訓注入 (Memory & Lesson Injection)
+
+```mermaid
+graph LR
+    subgraph "知識庫 (Knowledge Base)"
+        Sub[潛意識記憶: 全域教訓]
+        Proj[專案教訓: .codex_lessons.md]
+    end
+    
+    Sub --> Inject[💉 Context 注入]
+    Proj --> Inject
+    Inject --> Review[🧠 LLM 審查引擎]
+    Review -- FAIL --> Crystallize[💎 Steward: 結晶新教訓]
+    Crystallize --> Proj
+```
+
 [繁體中文說明](#-繁體中文說明) | [English Version](#-english-version)
 
 ---
