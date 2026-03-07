@@ -29,11 +29,17 @@ class CodexLoopV2:
     符合 Clean Code SRP 原則，將職責委派給專業模組。
     """
     
-    def __init__(self, mode="developer", scope="staged", apply_patch=False, base_ref="HEAD"):
+    def __init__(self, mode="developer", scope="staged", apply_patch=False, base_ref="HEAD", profile=None):
         self.mode = mode
         self.scope = scope
         self.apply_patch = apply_patch
         self.base_ref = base_ref
+        
+        # 0. 套用 Profile 預設 (DX Polish Lvl 16.5)
+        if profile == "solo-dev":
+            self.mode = "safe-commit"
+            self.apply_patch = True
+            print("👤 [PROFILE] solo-dev active (Safe-Commit + Auto-Apply + 180s Timeout)")
         
         # 1. 初始化 Git 管理員
         self.git = GitManager()
@@ -180,6 +186,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="*", help="Files to review")
     parser.add_argument("--mode", default="developer", choices=["developer", "safe-commit", "agent-shield", "audit"], help="Persona mode")
+    parser.add_argument("--profile", default=None, choices=["solo-dev"], help="Quick-start profile")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--base", default="HEAD")
@@ -195,5 +202,5 @@ if __name__ == "__main__":
     else:
         scope = "staged"
         
-    engine = CodexLoopV2(mode=args.mode, scope=scope, apply_patch=args.apply, base_ref=args.base)
+    engine = CodexLoopV2(mode=args.mode, scope=scope, apply_patch=args.apply, base_ref=args.base, profile=args.profile)
     sys.exit(0 if engine.run_review(args.files) else 1)

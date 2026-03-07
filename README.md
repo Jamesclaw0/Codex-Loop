@@ -44,6 +44,28 @@ graph LR
 
 ---
 
+## 🚀 快速快速入門 (Quick Start)
+
+**10 秒鐘開啟鋼鐵品質閘門**
+
+```bash
+# 1. 複製並進入專案
+git clone https://github.com/Jamesclaw0/Codex-Loop.git && cd Codex-Loop
+
+# 2. 開發者模式安裝 (推薦)
+pip install -e .
+
+# 3. 啟用「個人開發者」預設配置 (Safe-Commit + Auto-Apply)
+codex-loop --profile solo-dev
+```
+
+> [!TIP]
+> 想要在每次 `git commit` 前自動審查？執行 `./scripts/install_safe_commit.sh` 即可一鍵掛鉤！
+
+---
+
+---
+
 ## 🇹🇼 繁體中文說明
 
 **別再盲目信任 AI Agent，讓它們用實力和邏輯證明程式碼是正確的。**
@@ -187,19 +209,28 @@ We hate noisy alerts as much as you do. Codex-Loop ensures every notification is
 
 ---
 
-## 🛠️ 安裝與使用 (Installation)
+---
 
-1. **複製專案**：
+## 🛠️ 進階安裝說明 (Full Installation Guide)
+
+如果您需要自定義路徑或手動設定：
+
+1. **開發者模式 (推薦)**：
    ```bash
    git clone https://github.com/Jamesclaw0/Codex-Loop.git
+   cd Codex-Loop
+   pip install -e .
    ```
-2. **建立連結**：
+2. **手動建立連結 (舊版方式)**：
    ```bash
    ln -s $(pwd)/scripts/codex-loop.sh /usr/local/bin/codex-loop
    ```
-3. **開始執行**：
-   在任何 Git 專案執行 `codex-loop` 即可啟動審查。
-4. **開發者手冊**：參閱 [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)。
+3. **一鍵掛鉤 Git Hook**：
+   ```bash
+   ./scripts/install_safe_commit.sh
+   ```
+
+---
 
 ---
 
