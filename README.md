@@ -60,6 +60,35 @@ graph LR
 - **會話複利與長期記憶 (MemorySteward)**：自動將審查教訓結晶至 `.codex_lessons.md`，賦予專案「免疫記憶」，防止重複踩雷。
 - **IDE 標準適配 (`--sarif`)**：輸出標準 SARIF v2.1.0 格式，無縫對接 VS Code 問題面板。
 
+### 👤 進階玩家：如何將 Codex-Loop 轉化為個人開發安全網？
+
+如果您是會寫程式、愛玩 AI Agent (OpenClaw / Serena) 的進階玩家，Codex-Loop 的最大價值在於：**讓您能放心開多個「AI 實習生」替您工作，而不用擔心它們把專案搞爛。**
+
+#### 💡 我們推薦的三種日常模式 (Recommended Modes)
+
+1.  **本機「平安提交」模式 (Safe-Commit)**
+    *   **場景**: 在您手動改完代碼或讓 AI 產出後。
+    *   **價值**: 自動執行 Linter 與 3-Strike 自癒。通過後才允許 commit，確保主幹代碼永遠是「綠色」的。
+2.  **多 Agent「保護框」模式 (Multi-Agent Shield)**
+    *   **場景**: 當您同時啟動多個 `parallel_fix` 分身執行不同任務時。
+    *   **價值**: 利用 API Queue Lock 與檔案鎖，自動防止不同 Agent 間的資源踩踏與 Rate Limit。
+3.  **「執政大審」稽核模式 (Final Audit)**
+    *   **場景**: 在一個大型任務（如重構）結束後。
+    *   **價值**: 透過 Cross-Model Judge 產出一份完整的品質稽核報告，您只需閱覽報告決定是否「簽核 (Merge)」，不必親自追每一行變更。
+
+---
+
+### 🛁 噪音治理：我們如何維持極高的信噪比 (SNR Engineering)
+
+我們深知「過多無用的報警就是噪音」。Codex-Loop 透過以下機制確保輸出皆是精華：
+
+*   **✂️ 智慧截斷 (Smart Truncation)**: 自動過濾 LLM 廢話，僅保留最核心的 P1/P2 違規診斷。
+*   **🚿 Git 衛生預檢 (Hygiene Check)**: 若工作區過於雜亂（過多未暫存檔案），會自動阻斷審查，防止 AI 因上下文混亂而胡言亂語。
+*   **🎯 符號級精準度 (Serena-Native)**: 基於符號參考分析，而非單純字串匹配，減少 False Positives。
+*   **🔗 路徑魯棒性 (Path Resilience)**: 自動處理中文字元與特殊路徑，消除解析階段的低級噪音。
+
+---
+
 ### ✨ 核心功能 (Core Features)
 
 - **自主修復機制**：不僅是報告錯誤，更強迫 AI 根據審查報告進行自我修正。
@@ -108,6 +137,35 @@ graph LR
 - **Session Compounding (MemorySteward)**: Crystallizes review lessons into `.codex_lessons.md` for long-term project immunity.
 - **IDE Integration (`--sarif`)**: Native SARIF v2.1.0 output for seamless VS Code Problems panel integration.
 
+### 👤 Solo Player: Transforming Codex-Loop into Your Personal Safety Net
+
+If you're an advanced developer playing with multiple AI Agents, Codex-Loop's ultimate value is: **Empowering you to deploy multiple "AI Interns" with total peace of mind.**
+
+#### 💡 Three Recommended Solo Modes
+
+1.  **Safe-Commit Mode (Standard)**
+    *   **Scenario**: After manual edits or AI generation.
+    *   **Value**: Automated linter and 3-Strike self-healing. Blocks commit until the code is "Green".
+2.  **Multi-Agent Shield (Advanced)**
+    *   **Scenario**: Running concurrent `parallel_fix` workers on different tasks.
+    *   **Value**: Global API queuing and file locking prevent race conditions and rate-limit crashes.
+3.  **Final Audit Mode (Orchestrator)**
+    *   **Scenario**: After a major task (e.g., refactoring) is "complete".
+    *   **Value**: Generates a comprehensive quality audit via Cross-Model Judge. You review the report; Codex handles the toil.
+
+---
+
+### 🛁 SNR Engineering: Keeping the Signal-to-Noise Ratio High
+
+We hate noisy alerts as much as you do. Codex-Loop ensures every notification is actionable:
+
+*   **✂️ Smart Truncation**: Automatically prunes LLM verbosity, keeping only high-severity P1/P2 diagnosis.
+*   **🚿 Git Hygiene Pre-flight**: Blocks review if the workspace is too "dirty," preventing AI confusion.
+*   **🎯 Serena-Native Precision**: Symbol-level reference analysis reduces false positives compared to simple grep.
+*   **🔗 Path Resilience**: Native support for CJK characters and special paths to avoid parsing-level noise.
+
+---
+
 ### ✨ Key Capabilities
 
 `codex-loop` is an autonomous quality gate designed for AI coding agents. It creates a "Ping-Pong" feedback loop where the agent must fix its own code until it passes a rigorous, cross-model review—or it won't let the task finish.
@@ -142,6 +200,26 @@ graph LR
 3. **開始執行**：
    在任何 Git 專案執行 `codex-loop` 即可啟動審查。
 4. **開發者手冊**：參閱 [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)。
+
+---
+
+### 🚀 開發者 End-to-End 工作流示範 (Developer Workflow)
+
+為了讓您更有體感，這是一個典型的開發循環：
+
+1.  **本機開發**: 您（或 AI）修改了 `auth.py`。
+2.  **暫存變更**: 執行 `git add auth.py`。
+3.  **觸發審查**: 執行 `codex-loop`。
+    *   `ruff` 發現語法錯誤 -> **自動攔截**。
+    *   修正後再次 `codex-loop` -> **LLM 介入審查**。
+    *   LLM 發現邏輯漏洞 -> **Strike 1 失敗**。
+    *   AI 根據報告自癒 (`--apply`) -> **自動生成 Patch**。
+    *   再次審查 -> **PASS (Strike 2)**。
+4.  **品質蓋章**: 檔案頂部自動注入 `Codex-Verified` 標誌。
+5.  **安全送交**: 執行 `git commit`。
+6.  **GitHub PR**: CI 偵測到驗證標誌，允許自動合併。
+
+---
 
 ### 🤖 如何讓 AI Agent 自動使用 Codex-Loop？
 
@@ -231,4 +309,23 @@ python3 parallel_fix.py '<task_description>' [part_1,part_2,...]
 - **Serena / OpenClaw Native Support [NEW]**: Includes built-in `.serena/` configurations, enabling out-of-the-box compatibility with next-gen MCP agent frameworks for smoother interactions.
 
 ---
+
+### 🚀 End-to-End Developer Workflow Demonstration
+
+Here’s how it looks in action:
+
+1.  **Local Dev**: You (or your AI) modify `auth.py`.
+2.  **Stage Changes**: Run `git add auth.py`.
+3.  **Trigger Review**: Run `codex-loop`.
+    *   `ruff` catches a syntax error -> **Auto-Blocked**.
+    *   You fix it and re-run -> **LLM Review Initiated**.
+    *   LLM catches a logic bug -> **Strike 1 Fail**.
+    *   Auto-heal (`--apply`) triggered -> **Patch Generated**.
+    *   Final check -> **PASS (Strike 2)**.
+4.  **Quality Stamp**: `Codex-Verified` stamp injected into the file header.
+5.  **Safe Commit**: Run `git commit`.
+6.  **GitHub PR**: CI detects the verification stamp and approves the merge.
+
+---
+
 Built by [Sir] & [Muse-Core]
