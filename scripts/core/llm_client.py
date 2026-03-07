@@ -2,9 +2,8 @@ import subprocess
 import json
 import fcntl
 import shutil
-import hashlib
-import time
-from pathlib import Path
+import re
+
 
 class LLMClient:
     """負責與 LLM (Codex) 的通訊與結果解析。"""
@@ -21,15 +20,21 @@ class LLMClient:
             with open(self.lock_file, "w") as lock_f:
                 fcntl.flock(lock_f, fcntl.LOCK_EX)
                 res = subprocess.run(
-                    [self.llm_bin, "exec", "-"], 
-                    input=full_prompt, 
-                    capture_output=True, 
-                    text=True, 
-                    timeout=180
+                    [self.llm_bin, "exec", "-"],
+                    input=full_prompt,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
                 )
-            
+
             # 🛡️ 魯棒性 JSON 提取 (符合 Lvl 16 Lessons)
             output = res.stdout + res.stderr
+            # 🛡️ 提前提取 Token 消耗 (Lvl 16 DX)
+            tokens_total = 0
+            token_match = re.search(r"tokens used\s+(\d+(?:,\d+)?)", output)
+            if token_match:
+                tokens_total = int(token_match.group(1).replace(",", ""))
+
             try:
                 # 優先尋找最後一個 JSON 區塊，避免日誌干擾
                 if "```json" in output:
@@ -45,18 +50,30 @@ class LLMClient:
                         json_str = output.strip()
                 else:
                     json_str = output.strip()
-                
+
                 data = json.loads(json_str)
+                data["tokens_used"] = tokens_total
+
                 # 驗證 Schema 合規性
                 if not isinstance(data, dict) or "status" not in data:
                     raise ValueError(f"Missing required 'status' field in {data}")
-                
+
                 return data, output
             except (json.JSONDecodeError, IndexError, ValueError) as e:
                 # 🛡️ 失敗時輸出原始資訊以便微調
                 print(f"⚠️ [JSON_PARSE_ERROR] {e}")
                 print(f"--- RAW OUTPUT START ---\n{output}\n--- RAW OUTPUT END ---")
-                return {"status": "FAIL", "summary": f"JSON parsing error: {e}", "violations": []}, output
-                
+                return {
+                    "status": "FAIL",
+                    "summary": f"JSON parsing error: {e}",
+                    "violations": [],
+                    "tokens_used": tokens_total,
+                }, output
+
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return {"status": "FAIL", "summary": f"LLM client error: {e}", "violations": []}, str(e)
+            return {
+                "status": "FAIL",
+                "summary": f"LLM client error: {e}",
+                "violations": [],
+                "tokens_used": 0,
+            }, str(e)
