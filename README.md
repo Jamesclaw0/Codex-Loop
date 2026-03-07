@@ -157,7 +157,10 @@ codex-loop --profile solo-dev
 - **Self-Healing Mode (`--apply`)**: Auto-parse AI patches and perform `git apply --3way --recount` for one-click fixes.
 - **Resource Shielding (Codex-Worker Lock)**: Built-in file locking ensures atomic operations in multi-agent environments.
 - **TDD-Driven Self-Heal (SafePatcher+)**: Automatically generates reproduce test cases for every fix, enforcing Red/Green discipline.
-- **Session Compounding (MemorySteward)**: Crystallizes review lessons into `.codex_lessons.md` for long-term project immunity.
+- **🧬 Cognitive Closure**: Ensures all code changes are verified before commit.
+- **🛡️ Smart Trigger (NEW)**: Automatically detects and reviews `unstaged` changes if no `staged` (git add) changes are found in developer mode.
+- **📊 Token Metrics (NEW)**: Provides real-time total token consumption tracking for every audit session.
+- **🧠 Immune Memory**: Crystallizes lessons into `.codex_lessons.md` to prevent recurring architectural regressions.
 - **IDE Integration (`--sarif`)**: Native SARIF v2.1.0 output for seamless VS Code Problems panel integration.
 
 ### 👤 Solo Player: Transforming Codex-Loop into Your Personal Safety Net
