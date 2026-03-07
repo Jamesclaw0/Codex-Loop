@@ -9,9 +9,9 @@ from pathlib import Path
 from datetime import datetime
 
 # 🔗 核心技能路徑 (Phase 3 & 6)
-CONTEXT_INJECTOR_BIN = "/Users/jameschen/.openclaw/skills/context-injector/scripts/inject_context.py"
-FLASH_INGEST_BIN = "/Users/jameschen/Downloads/obsidian/知識庫/01_Operations/scripts/flash_ingest_v2.py"
-UV_BIN = "/Users/jameschen/.local/bin/uv"
+CONTEXT_INJECTOR_BIN = os.getenv("MUSE_CORE_CONTEXT_INJECTOR", "")
+FLASH_INGEST_BIN = os.getenv("MUSE_CORE_FLASH_INGEST", "")
+UV_BIN = shutil.which("uv") or "uv"
 
 class WorkspaceManager:
     """
@@ -41,13 +41,15 @@ class WorkspaceManager:
                 cwd=self.project_root, check=True, capture_output=True
             )
             
-            # 🛡️ Lvl 18 Phase 3: 大腦上下文注入 (Context Injection)
-            if os.path.exists(CONTEXT_INJECTOR_BIN):
+            injector_bin = CONTEXT_INJECTOR_BIN or (Path(KB_DIR) / "01_Persona/scripts/inject_context.py")
+            if injector_bin and os.path.exists(injector_bin):
                 print(f"🧠 [Injection] Syncing brain context to sandbox...")
-                res = subprocess.run(["python3", CONTEXT_INJECTOR_BIN], capture_output=True, text=True)
+                res = subprocess.run(["python3", injector_bin], capture_output=True, text=True)
                 if res.returncode == 0:
                     (work_path / "CONTEXT_SYNC.md").write_text(res.stdout, encoding="utf-8")
                     print("✅ [Injection] CONTEXT_SYNC.md generated in sandbox.")
+            else:
+                print(f"⚠️ [Injection Warning] Context injector not found at {injector_bin}. Skipping brain sync.")
             
             return task_id, branch_name, work_path
         except subprocess.CalledProcessError as e:
@@ -99,13 +101,14 @@ class WorkspaceManager:
                 print(f"✅ [SUCCESS] Task {branch_name} harvested and merged.")
                 
                 # 🛡️ Lvl 18 Phase 6: 閃電記憶對位 (Flash Crystallization)
-                if os.path.exists(FLASH_INGEST_BIN):
+                flash_bin = FLASH_INGEST_BIN or (Path(KB_DIR) / "01_Operations/scripts/flash_ingest_v2.py")
+                if flash_bin and os.path.exists(flash_bin):
                     print("💎 [Flash] Triggering asynchronous brain crystallization...")
                     # 使用 nohup 背景執行，確保不阻塞主線
                     cmd = [
                         "nohup", UV_BIN, "run", 
                         "--with", "lancedb", "--with", "pandas", "--with", "requests",
-                        FLASH_INGEST_BIN
+                        flash_bin
                     ]
                     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=os.setpgrp)
                 

@@ -7,7 +7,7 @@ class Linter:
     def __init__(self):
         self.paths_to_try = [
             shutil.which("ruff"),
-            "/Users/jameschen/.local/bin/uv run --with ruff ruff",
+            f"{shutil.which('uv') or 'uv'} run --with ruff ruff",
             "ruff"
         ]
 
