@@ -1,5 +1,7 @@
 # 🛡️ Codex-Loop: The Autonomous AI Quality Gate
 
+![Codex-Loop v2.0 Visual Table](docs/images/visual_table.png)
+
 [繁體中文說明](#-繁體中文說明) | [English Version](#-english-version)
 
 ---
@@ -8,12 +10,22 @@
 
 **別再盲目信任 AI Agent，讓它們用實力和邏輯證明程式碼是正確的。**
 
-`codex-loop` 是一款專為 AI 編裝 Agent 設計的「自律品質閘門」工具。它建立了一個強制性的 "Ping-Pong" 反饋循環：Agent 產出的程式碼必須通過嚴格的跨模型審查，否則系統會鎖定任務並強迫 Agent 持續修復，直到綠燈通過為止。
+`codex-loop` 是一款專為 AI 編裝 Agent 設計的「自律品質閘門」工具。它建立了一個強制性的 "Ping-Pong" 反饋循環：Agent 產出的程式碼必須通過嚴格的跨模型審查。
 
-### ✨ 為什麼需要 Codex-Loop？
+### 🧬 v2.0 Developer Edition: 鋼鐵演化與自癒 [MAJOR]
+
+在 v2.0 版本中，我們從「監視者」演化為「醫療中樞」：
+- **ANSI 視覺化報表**：提供高級對齊的審查表格，具備語義色彩標註，一眼透視 Bug。
+- **反射自癒模式 (`--apply`)**：自動解析 AI 處方 (`patch`) 並執行 `git apply --3way --recount`，實現一鍵診斷修復。
+- **兵營級主權保護 (Codex-Worker Lock)**：整合資源鎖定機制，確保多 Agent 並行開發時無衝突、無覆寫。
+- **TDD 驅動自癒 (SafePatcher+)**：每一組自動修復補丁都會伴隨 TDD 復現測試腳本，落實「先紅後綠」的工程紀律。
+- **會話複利與長期記憶 (MemorySteward)**：自動將審查教訓結晶至 `.codex_lessons.md`，賦予專案「免疫記憶」，防止重複踩雷。
+- **IDE 標準適配 (`--sarif`)**：輸出標準 SARIF v2.1.0 格式，無縫對接 VS Code 問題面板。
+
+### ✨ 核心功能 (Core Features)
 
 - **自主修復機制**：不僅是報告錯誤，更強迫 AI 根據審查報告進行自我修正。
-- **跨模型審核 (Cross-Model Judge)**：利用模型間的認知差異（如：用 OpenAI Codex 審核 Claude 的產出），消除單一模型的盲點。
+- **跨模型審核 (Cross-Model Judge)**：利用模型間的認知差異，消除單一模型的盲點。
 - **3 次熔斷 (3-Strike Policy)**：如果 Agent 陷入死循環，工具會自動升級為「終極指導模式」，強制輸出正確解法，確保開發不中斷且節省 Token。
 - **雙層防護機制 (Dual-Layer Locks)**：
   - **API 全域排隊鎖**：內建 Python `fcntl` 全域鎖，多個 Agent 同時呼叫審查時會自動排隊，防止 API 配額爆掉（Rate Limit Error）。
@@ -30,7 +42,7 @@
 - **🧠 狀態機大腦 (Orchestrator State Machine) [NEW]**: 內建 Task State 追蹤 (Claim/Start/Done/Retry)，完美防止 Agent 幽靈重試或重複送審，深度整合生命週期。
 - **📦 Per-task Workspace 沙盒隔離 [NEW]**: 搭配 `workspace-manager`，每個任務可在隔離的 `/tmp/claw-workspaces/<task_id>` 環境中執行，徹底防堵跨專案污染。
 - **🔊 人性化動態語音回報 [NEW]**: 支援動態語音模板回報審查進度與錯誤字串摘要，賦予開發循環更有人味的回饋。
-- **👁️ 潛意識觀察者 (Subconscious Observer)**：自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
+- **🧠 潛意識觀察者 (Subconscious Observer)**：自動紀錄 Agent 的每一輪開發碎片 (PASS/FAIL)，並透過背景 Daemon 萃取跨會話的黃金教訓，賦予 Agent 成長記憶，防止重蹈覆轍。
 - **🧩 Agent DX 2.0: 工具自省協議 (--describe) [NEW]**: 核心工具具備「自我解說」能力，Agent 可透過執行 `tool --describe` 直接獲取該工具的 **JSON Schema**，大幅減少閱讀源碼所消耗的 Token。
 - **🛁 Git 衛生檢查員 (Git Hygiene Checker) [NEW]**: 內建預檢機制，在啟動 Review 前自動掃描未暫存檔案數量。若發現環境過於雜亂（可能導致 LLM 索引鎖死），會主動發出警報並阻斷流程，確保審查環境的純淨。
 - **🧠 Lvl 16.1 神經整合與稽核 (Neural Loop Audit) [NEW]**:
@@ -39,7 +51,39 @@
   - **提交即主權 (Mandatory Commitment)**：確立「未經 commit 即為雜訊」原則，確保代碼變更必須經過 Loop 認證後才具備永久存檔效力。
 - **零繞過政策**：深度整合 Git 工作流，檔案未獲得 `Codex-Verified` 標誌前禁止送交。
 
-### 🛠️ 安裝與使用
+---
+
+## 🇺🇸 English Version
+
+**Stop trusting your AI agents blindly. Make them prove their code works.**
+
+### 🧬 v2.0 Developer Edition: Steel Evolution & Self-Healing
+
+- **ANSI Visual Reports**: High-fidelity terminal tables with semantic color coding.
+- **Self-Healing Mode (`--apply`)**: Auto-parse AI patches and perform `git apply --3way --recount` for one-click fixes.
+- **Resource Shielding (Codex-Worker Lock)**: Built-in file locking ensures atomic operations in multi-agent environments.
+- **TDD-Driven Self-Heal (SafePatcher+)**: Automatically generates reproduce test cases for every fix, enforcing Red/Green discipline.
+- **Session Compounding (MemorySteward)**: Crystallizes review lessons into `.codex_lessons.md` for long-term project immunity.
+- **IDE Integration (`--sarif`)**: Native SARIF v2.1.0 output for seamless VS Code Problems panel integration.
+
+### ✨ Key Capabilities
+
+`codex-loop` is an autonomous quality gate designed for AI coding agents. It creates a "Ping-Pong" feedback loop where the agent must fix its own code until it passes a rigorous, cross-model review—or it won't let the task finish.
+
+- **Autonomous Correction**: Forces the AI to fix its own bugs through a feedback loop.
+- **Cross-Model Integrity**: Eliminate model blind spots by using independent judges.
+- **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
+- **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
+- **🛁 Git Hygiene Checker [NEW]**: Intelligent pre-flight check that scans for excess untracked files before starting review. Prevents indexing freezes and ensures a clean, predictable review environment.
+- **🧠 Lvl 16.1 Neural Loop Audit [NEW]**:
+  - **Full Prompt Auditing**: Records exactly which lessons/prompts were applied to a review for 100% transparency.
+  - **Bi-directional Knowledge Cycle**: Integrates with subconscious daemons to record dev transcripts (PASS/FAIL) for continuous AI self-reflection and growth.
+  - **Mandatory Commitment Protocol**: Establishes the rule that "unread/uncommitted is noise," forcing code validation via loops before it gains permanent status.
+- **🧠 Subconscious Observer**: Automated growth through historical dev transcripts.
+
+---
+
+## 🛠️ 安裝與使用 (Installation)
 
 1. **複製專案**：
    ```bash
@@ -51,6 +95,7 @@
    ```
 3. **開始執行**：
    在任何 Git 專案執行 `codex-loop` 即可啟動審查。
+4. **開發者手冊**：參閱 [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md)。
 
 ### 🤖 如何讓 AI Agent 自動使用 Codex-Loop？
 
@@ -97,38 +142,7 @@ python3 parallel_fix.py '任務描述' [part_1,part_2,...]
 
 ---
 
-## 🇺🇸 English Version
-
-**Stop trusting your AI agents blindly. Make them prove their code works.**
-
-`codex-loop` is an autonomous quality gate designed for AI coding agents. It creates a "Ping-Pong" feedback loop where the agent must fix its own code until it passes a rigorous, cross-model review—or it won't let the task finish.
-
-### ✨ Key Features
-
-- **Autonomous Correction**: Forces the AI to read the review and fix its own bugs.
-- **Cross-Model Integrity**: Eliminate model blind spots by using a judging model to verify a coding model.
-- **3-Strike Safety**: Escalates to "Final Instruction Mode" if an agent gets stuck, forcing the correct solution output.
-- **Local Linter Precheck**: Validates Python syntax via `ruff` or `py_compile` locally, catching basic errors before expensive LLM calls.
-- **🛁 Git Hygiene Checker [NEW]**: Intelligent pre-flight check that scans for excess untracked files before starting review. Prevents indexing freezes and ensures a clean, predictable review environment.
-- **🧠 Lvl 16.1 Neural Loop Audit [NEW]**:
-  - **Full Prompt Auditing**: Records exactly which lessons/prompts were applied to a review for 100% transparency.
-  - **Bi-directional Knowledge Cycle**: Integrates with subconscious daemons to record dev transcripts (PASS/FAIL) for continuous AI self-reflection and growth.
-  - **Mandatory Commitment Protocol**: Establishes the rule that "unread/uncommitted is noise," forcing code validation via loops before it gains permanent status.
-
-### 🛠️ Installation & Usage
-
-1. **Clone it**:
-   ```bash
-   git clone https://github.com/your-username/codex-loop.git
-   ```
-2. **Setup CLI**:
-   ```bash
-   ln -s $(pwd)/scripts/codex-loop.sh /usr/local/bin/codex-loop
-   ```
-3. **Run**:
-   Execute `codex-loop` in your repository before any commit or task completion.
-
-### 🤖 How to Make AI Agents Use Codex-Loop Automatically
+## 🤖 How to Make AI Agents Use Codex-Loop Automatically
 
 AI agents (like Devin, OpenClaw, or Gemini) will **NOT** automatically run `codex-loop` after coding unless you explicitly instruct them to. 
 

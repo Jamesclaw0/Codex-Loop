@@ -1,228 +1,129 @@
 #!/usr/bin/env python3
-"""
-功能: Codex-Loop 跨模型邏輯腦核心決策與審查模組
-🧠 Muse-Core Cognitive Loop Brain (Lvl 16)
-負責處理 codex-loop 的核心邏輯、跨嘗試記憶與品質決策。
-支援 Inner Loop，將審核報告輸出至 /tmp/codex_loop_report.md 供 parallel_fix.py 驅動自動修復迴圈。
-"""
-import os
 import sys
-import subprocess
-import fcntl
-import hashlib
+import os
 import json
-import time
 from pathlib import Path
 from datetime import datetime
 
-# --- 配置 ---
+# 導入拆分後的核心模組
+from core.git_manager import GitManager
+from core.llm_client import LLMClient
+from core.linter import Linter
+from core.patcher import SafePatcher
+from core.reporter import Reporter
+
+# 配置
 KB_DIR = os.getenv("MUSE_CORE_KB_DIR", "/Users/jameschen/Downloads/obsidian/知識庫")
+PROMPT_TEMPLATE = Path(KB_DIR) / "01_Operations/Templates/developer_prompt_v2.md"
 
-class CodexLoopBrain:
-    def __init__(self, scope=".", use_global=False, base_commit="staged"):
-        self.scope = scope if not use_global else ""
-        self.base_commit = base_commit
-        self.git_dir = self._get_git_dir()
-        self.transcripts_dir = Path.home() / ".muse_transcripts"
-        self.transcripts_dir.mkdir(exist_ok=True)
+class CodexLoopV2:
+    """
+    🧬 Codex-Loop v2.0: Modular Intelligence Orchestrator
+    符合 Clean Code SRP 原則，將職責委派給專業模組。
+    """
+    
+    def __init__(self, mode="developer", scope="staged", apply_patch=False, base_ref="HEAD"):
+        self.mode = mode
+        self.scope = scope
+        self.apply_patch = apply_patch
+        self.base_ref = base_ref
         
-        if self.git_dir:
-            abs_git_dir = os.path.abspath(self.git_dir)
-            repo_hash = hashlib.md5(abs_git_dir.encode()).hexdigest()[:8]
-            self.count_file = os.path.join(self.git_dir, "codex_loop_count.txt")
-            self.lock_file = f"/tmp/codex_loop_{repo_hash}.lock"
-            self.report_file = f"/tmp/codex_loop_report_{repo_hash}.md"
-        else:
-            self.count_file = "/tmp/codex_loop_count.txt"
-            self.lock_file = "/tmp/codex_loop_global.lock"
-            self.report_file = "/tmp/codex_loop_report.md"
+        # 1. 初始化 Git 管理員
+        self.git = GitManager()
+        
+        # 2. 初始化 LLM 客戶端 (傳遞鎖定檔路徑)
+        self.llm = LLMClient(lock_file=Path(self.git.git_dir) / "codex_loop_v2.lock" if self.git.git_dir else None)
+        
+        # 3. 初始化其餘組件
+        self.linter = Linter()
+        self.patcher = SafePatcher(lock_dir=self.git.git_dir or "/tmp")
+        self.reporter = Reporter()
+        
+        # 報告路徑
+        self.report_path = Path(self.git.git_dir) / "codex_loop_report.md" if self.git.git_dir else Path("/tmp/codex_loop_report.md")
 
-    def _get_project_root(self):
-        """獲取 Git 倉庫根目錄 (支援 Worktree)。"""
-        try:
-            return subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode().strip()
-        except (subprocess.CalledProcessError, FileNotFoundError): 
-            return None
-
-    def _get_git_dir(self):
-        """獲取 Git 內部目錄。"""
-        try:
-            return subprocess.check_output(["git", "rev-parse", "--absolute-git-dir"]).decode().strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return None
-
-    def _get_subconscious_lessons(self):
-        """讀取大腦潛意識與專案教訓。"""
+    def _get_lessons(self):
+        """獲取跨專案與全域教訓。"""
         lessons = []
-        # 1. 讀取全域潛意識
         sub_file = Path(KB_DIR) / "00_System_Knowledge/01_Operations/04_Subconscious_Memory.md"
         if sub_file.exists():
-            try:
-                content = sub_file.read_text(encoding="utf-8")
-                if "<muse_subconscious>" in content:
-                    extracted = content.split("<muse_subconscious>")[1].split("</muse_subconscious>")[0]
-                    lessons.append(f"--- Global Subconscious Lessons ---\n{extracted.strip()}")
-            except Exception: pass
+            content = sub_file.read_text(encoding="utf-8")
+            if "<muse_subconscious>" in content:
+                extracted = content.split("<muse_subconscious>")[1].split("</muse_subconscious>")[0]
+                lessons.append(f"--- Global Subconscious ---\n{extracted.strip()}")
+        
+        local_lessons = Path(self.git.project_root) / ".codex_lessons.md"
+        if local_lessons.exists():
+            lessons.append(f"--- Project Lessons ---\n{local_lessons.read_text(encoding='utf-8')}")
+        
+        return "\n\n".join(lessons)
 
-        # 2. 讀取專案局部教訓
-        root = self._get_project_root()
-        if root:
-            local_lessons = Path(root) / ".codex_lessons.md"
-            if local_lessons.exists():
+    def run_review(self, manual_files=None):
+        print(f"🔍 [v2.0] Mode: {self.mode} | Scope: {self.scope}")
+        
+        # Step 1: 獲取變更
+        if manual_files:
+            code_files = [f for f in manual_files if Path(f).is_file()]
+            diff_text = ""
+            for f in code_files:
                 try:
-                    lessons.append(f"--- Project Specific Lessons ---\n{local_lessons.read_text(encoding='utf-8')}")
-                except Exception: pass
-        
-        return "\n\n".join(lessons) if lessons else "No specific lessons found."
-
-    def _record_transcript(self, status, diff, report, prompt):
-        """紀錄審查碎片供大腦潛意識消化。"""
-        transcript = {
-            "timestamp": datetime.now().isoformat(),
-            "repo": self.git_dir or "global",
-            "scope": self.scope,
-            "status": status,
-            "prompt": prompt[:5000],  # 截斷以保護 JSONL 大小 (Fix prompted by self-review)
-            "diff": diff[:5000],  # 截斷以保護 JSONL 大小
-            "report": report
-        }
-        # 使用更唯一的命名防止並行衝突
-        uid = hashlib.md5(f"{time.time()}_{os.getpid()}".encode()).hexdigest()[:6]
-        ts_file = self.transcripts_dir / f"loop_{int(time.time())}_{uid}.jsonl"
-        try:
-            with open(ts_file, "w", encoding="utf-8") as f:
-                f.write(json.dumps(transcript, ensure_ascii=False) + "\n")
-        except Exception as e:
-            print(f"⚠️ [BRAIN] Warning: Could not record transcript: {e}")
-
-
-    def get_fail_count(self):
-        if os.path.exists(self.count_file):
-            try:
-                with open(self.count_file, "r") as f:
-                    return int(f.read().strip())
-            except (ValueError, OSError) as e:
-                print(f"⚠️ [BRAIN] Warning: Could not read fail count: {e}")
-                return 0
-        return 0
-
-    def set_fail_count(self, count):
-        try:
-            with open(self.count_file, "w") as f:
-                f.write(str(count))
-        except OSError as e:
-            print(f"⚠️ [BRAIN] Warning: Could not write fail count: {e}")
-
-    def _write_fallback_report(self, msg):
-        """發生系統性錯誤時，寫入 Fallback 報告，保護 Inner Loop。"""
-        try:
-            with open(self.report_file, "w") as f:
-                f.write(f"# Codex Loop System Error\n\n{msg}\n\n[P1] System Execution Failure.")
-        except IOError:
-            pass
-
-    def run_review(self):
-        fail_count = self.get_fail_count()
-        diff_cmd = ["git", "-c", "core.quotepath=false", "diff", "--relative", "--name-only"]
-        if self.base_commit == "staged":
-            diff_cmd.append("--cached")
+                    lines = Path(f).read_text(encoding="utf-8").splitlines()
+                    diff_text += f"\ndiff --git a/{f} b/{f}\nnew file mode 100644\n--- /dev/null\n+++ b/{f}\n@@ -0,0 +1,{len(lines)} @@\n"
+                    diff_text += "\n".join([f"+{line}" for line in lines]) + "\n"
+                except: pass
         else:
-            diff_cmd.append(f"{self.base_commit}...HEAD")
+            files, diff_text = self.git.get_changes(self.scope, self.base_ref)
+            code_files = [f for f in files if f.endswith(".py")]
         
-        if self.scope:
-            diff_cmd.extend(["--", self.scope])
-            
-        try:
-            files = subprocess.check_output(diff_cmd).decode().splitlines()
-        except subprocess.CalledProcessError as e:
-            err_msg = "❌ git diff error. Not in a git repo?"
-            print(err_msg)
-            self._write_fallback_report(err_msg)
-            return False
-            
-        code_files = [f for f in files if f.endswith(('.py', '.js', '.ts', '.sh', '.md', '.json'))]
-        if not code_files:
-            print("✅ [SKIPPED] 無程式碼變更。")
-            self.set_fail_count(0)
+        if not code_files and not diff_text.strip():
+            print("✅ [SKIPPED] No significant changes detected.")
             return True
 
-        diff_content_cmd = ["git", "diff", "--relative"]
-        if self.base_commit == "staged":
-            diff_content_cmd.append("--cached")
-        else:
-            diff_content_cmd.append(f"{self.base_commit}...HEAD")
-        if self.scope:
-            diff_content_cmd.extend(["--", self.scope])
+        # Step 2: 靜態分析
+        linter_json = self.linter.scan(code_files)
+        
+        # Step 3: LLM 深度審查 (注入教訓)
+        prompt = PROMPT_TEMPLATE.read_text(encoding="utf-8") if PROMPT_TEMPLATE.exists() else "Review this diff:"
+        lessons = self._get_lessons()
+        
+        full_prompt = f"{prompt}\n\nMANDATORY LESSONS:\n{lessons}\n\nLINTER_HINTS:\n{linter_json}\n"
+        
+        print("🧠 Calling LLM for Cognitive Review...")
+        data, raw_output = self.llm.ask(full_prompt, diff_text)
+        
+        # Step 4: 結果呈現與報告
+        if data.get("status") == "FAIL":
+            print(self.reporter.render_ansi_table(data.get("violations", [])))
+            self.reporter.write_markdown_report(self.report_path, data)
             
-        try:
-            diff_text = subprocess.check_output(diff_content_cmd).decode()
-        except subprocess.CalledProcessError as e:
-            err_msg = "❌ git diff content error."
-            print(err_msg)
-            self._write_fallback_report(err_msg)
+            # Step 5: 自動套用補丁 (若開啟)
+            if self.apply_patch:
+                self.patcher.apply(data.get("violations", []))
+            
             return False
-
-        lessons = self._get_subconscious_lessons()
-        prompt = (
-            "Instruction: Review the code for bugs, logic errors, and anti-patterns. "
-            "Use the subconscious lessons below as mandatory quality criteria. "
-            "If the code passes ALL criteria, output EXACTLY the strict string 'STATUS: PASS' "
-            "without any surrounding text. Otherwise, be specific about the violations.\n\n"
-            f"LESSONS:\n{lessons}\n\nFILES: {', '.join(code_files)}\n\nDIFF:\n"
-        )
         
-        print("🔍 正在呼叫 Codex 進行輔助決策 (已注入大腦教訓)...")
-        try:
-            with open(self.lock_file, "w") as lock_f:
-                fcntl.flock(lock_f, fcntl.LOCK_EX)
-                res = subprocess.run(["codex", "exec", "-"], input=prompt + diff_text, capture_output=True, text=True, timeout=180)
-            report = res.stdout + res.stderr
-        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-            err_msg = f"❌ [BRAIN] Codex CLI 執行失敗或超時: {e}"
-            print(err_msg)
-            self._write_fallback_report(err_msg)
-            return False
-            
-        # 實踐教訓 Lvl 16.1: 改用關鍵字包含判定，提升 CI 韌性 (避免因 WebSocket 雜訊 Return 1 導致攔截)
-        is_pass = "STATUS: PASS" in res.stdout
-        
-        # 經驗紀錄 (Lvl 16 閉環關鍵)
-        self._record_transcript("PASS" if is_pass else "FAIL", diff_text, report, prompt)
-        
-        try:
-            with open(self.report_file, "w") as f:
-                f.write(report)
-        except OSError as e:
-            print(f"⚠️ [BRAIN] Warning: Could not write report: {e}")
-        
-        if is_pass:
-            print("🎉 [PASSED] 認知閉環驗證通過！")
-            self.set_fail_count(0)
-            return True
-        else:
-            new_count = fail_count + 1
-            print(f"⚠️ [REJECTED] 偵測到品質缺陷。嘗試次數: {new_count}/3")
-            
-            if new_count >= 3:
-                print("\n" + "!" * 60)
-                print("🚨 [FATAL] 已達到最大重試次數 (3次)。")
-                print("阻止理由: 持續偵測到代碼品質缺陷，Codex 報告指出硬性缺陷。")
-                print("操作建議: 請 Sir 手動檢查 /tmp/codex_loop_report_*.md 並修正 root cause。")
-                print("!" * 60 + "\n")
-                self.set_fail_count(0)  # 達到上限後歸零，讓 Sir 手動修復後可重新啟動三輪
-                sys.exit(1) # 強制中斷
-            
-            self.set_fail_count(new_count)
-            return False
+        print("🎉 [PASSED] Cognitive security check cleared.")
+        return True
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--global", dest="is_global", action="store_true")
-    parser.add_argument("--base", default="staged", help="Git base commit")
+    parser.add_argument("files", nargs="*", help="Files to review")
+    parser.add_argument("--all", action="store_true")
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--base", default="HEAD")
     args = parser.parse_args()
-    brain = CodexLoopBrain(use_global=args.is_global, base_commit=args.base)
-    if brain.run_review():
-        sys.exit(0)
+    
+    # 優先級：指定檔案 > all > base > staged
+    if args.files:
+        scope = "manual"
+    elif args.all:
+        scope = "all"
+    elif args.base != "HEAD":
+        scope = "base"
     else:
-        sys.exit(1)
+        scope = "staged"
+        
+    engine = CodexLoopV2(scope=scope, apply_patch=args.apply, base_ref=args.base)
+    # 若為 manual 模式，手動傳入檔案清單 (需調整 engine.run_review)
+    sys.exit(0 if engine.run_review(args.files) else 1)
