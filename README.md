@@ -50,7 +50,8 @@ graph LR
 
 ```bash
 # 1. 複製並進入專案
-git clone https://github.com/Jamesclaw0/Codex-Loop.git && cd Codex-Loop
+git clone https://github.com/Jamesclaw0/Codex-Loop.git
+cd Codex-Loop
 
 # 2. 開發者模式安裝 (推薦)
 pip install -e .
@@ -223,7 +224,7 @@ We hate noisy alerts as much as you do. Codex-Loop ensures every notification is
    ```
 2. **手動建立連結 (舊版方式)**：
    ```bash
-   ln -s $(pwd)/scripts/codex-loop.sh /usr/local/bin/codex-loop
+   ln -s "$(pwd)/scripts/codex-loop.sh" /usr/local/bin/codex-loop
    ```
 3. **一鍵掛鉤 Git Hook**：
    ```bash
