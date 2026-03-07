@@ -50,13 +50,35 @@ class CodexLoopV2:
         
         # 🔗 重複偵測器 (Repetition Guard)
         self.history_hashes = set()
-        self.max_strikes = 3
+        
+        # 3. 根據 Persona Profile 進行配置調整
+        self._apply_persona_profile(mode)
         
         # 報告與補丁路徑 (符合 P16 Sandbox 定義)
         self.report_file = Path(f"/tmp/codex_loop_report_{repo_id}.md")
         self.patch_file = Path(f"/tmp/codex_auto_{repo_id}.patch")
         self.transcripts_dir = Path(f"/tmp/codex_transcripts_{repo_id}")
         self.transcripts_dir.mkdir(parents=True, exist_ok=True)
+
+    def _apply_persona_profile(self, mode):
+        """實作 README 中承諾的三種進階玩家模式。"""
+        if mode == "safe-commit":
+            # 本機平安模式：標準審查，不強迫自癒，除非指定
+            self.max_strikes = 2
+            self.persona_hint = "👤 MODE: SAFE-COMMIT (Maintain focus on stability and clean commit hygiene)."
+        elif mode == "agent-shield":
+            # 多 Agent 保護框：高次數限制，強勢自癒，防止 Agent 擺爛
+            self.max_strikes = 3
+            self.apply_patch = True
+            self.persona_hint = "👤 MODE: AGENT-SHIELD (Enforce strict self-healing to prevent agent regressions)."
+        elif mode == "audit":
+            # 執政大審：單次深度審核，不進行自癒循環，產出高質量報告
+            self.max_strikes = 1
+            self.persona_hint = "👤 MODE: FINAL-AUDIT (Generate high-fidelity architectural oversight report)."
+        else:
+            # 預設模式 (Developer)
+            self.max_strikes = 3
+            self.persona_hint = "👤 MODE: DEVELOPER (Balanced cognitive-loop audit)."
         
     def _get_lessons(self):
         """獲取跨專案與全域教訓。"""
@@ -109,10 +131,12 @@ class CodexLoopV2:
                 linter_json = self.linter.scan(code_files)
                 prompt = PROMPT_TEMPLATE.read_text(encoding="utf-8") if PROMPT_TEMPLATE.exists() else "Review:"
                 lessons = self._get_lessons()
-                full_prompt = f"{prompt}\n\nLESSONS:\n{lessons}\n\nLINTER:\n{linter_json}\n"
+                
+                # 注入 Persona Hint
+                full_prompt = f"{self.persona_hint}\n\n{prompt}\n\nLESSONS:\n{lessons}\n\nLINTER:\n{linter_json}\n"
                 
                 # 🛡️ Final Strike 模式：強制要求解決方案 (P16 Request: 3次沒過就要提供正確的code)
-                if strike == self.max_strikes:
+                if strike == self.max_strikes and self.max_strikes > 1:
                     full_prompt += "\n⚠️ [CRITICAL] FINAL STRIKE: This is your last chance. You MUST provide a definitive, compile-ready patch (Unified Diff) for all remaining violations. No more advice. Fix everything NOW.\n"
                 
                 print(f"🧠 Calling LLM for Cognitive Review (Strike {strike})...")
@@ -155,6 +179,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("files", nargs="*", help="Files to review")
+    parser.add_argument("--mode", default="developer", choices=["developer", "safe-commit", "agent-shield", "audit"], help="Persona mode")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--base", default="HEAD")
@@ -170,5 +195,5 @@ if __name__ == "__main__":
     else:
         scope = "staged"
         
-    engine = CodexLoopV2(scope=scope, apply_patch=args.apply, base_ref=args.base)
+    engine = CodexLoopV2(mode=args.mode, scope=scope, apply_patch=args.apply, base_ref=args.base)
     sys.exit(0 if engine.run_review(args.files) else 1)
