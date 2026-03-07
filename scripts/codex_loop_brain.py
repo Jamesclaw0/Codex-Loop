@@ -9,10 +9,10 @@ from pathlib import Path
 from datetime import datetime
 
 # 配置
-BRAIN_SEARCH_BIN = "/Users/jameschen/.openclaw/skills/memory-sync/scripts/brain_search.py"
-DRIFT_DETECTOR_BIN = "/Users/jameschen/Downloads/obsidian/知識庫/01_Operations/scripts/drift_detector.py"
-UI_TASTE_MD = "/Users/jameschen/Downloads/obsidian/知識庫/00_System_Knowledge/02_Arsenal/Skills_Library/ui_taste.md"
-UV_BIN = "/Users/jameschen/.local/bin/uv"
+BRAIN_SEARCH_BIN = os.getenv("MUSE_CORE_BRAIN_SEARCH", "/usr/local/bin/brain_search")
+DRIFT_DETECTOR_BIN = os.getenv("MUSE_CORE_DRIFT_DETECTOR", "")
+UI_TASTE_MD = os.getenv("MUSE_CORE_UI_TASTE", "")
+UV_BIN = shutil.which("uv") or "uv"
 
 # 導入拆分後的核心模組
 from core.git_manager import GitManager
@@ -149,23 +149,25 @@ class CodexLoopV2:
         if not any(Path(f).suffix in ui_exts for f in files):
             return ""
             
-        if os.path.exists(UI_TASTE_MD):
+        ui_taste_path = UI_TASTE_MD or (Path(KB_DIR) / "00_System_Knowledge/02_Arsenal/Skills_Library/ui_taste.md")
+        if ui_taste_path and os.path.exists(ui_taste_path):
             try:
-                content = Path(UI_TASTE_MD).read_text(encoding="utf-8")
+                content = Path(ui_taste_path).read_text(encoding="utf-8")
                 return f"\n🎨 **[AESTHETIC SHIELD] UI Detected! Enforce Premium Taste:**\n{content}\n"
             except Exception: pass
         return ""
 
     def _check_intent_drift(self):
         """執行意圖漂移攔截 (Phase 5)。"""
-        if not os.path.exists(DRIFT_DETECTOR_BIN):
+        drift_bin = DRIFT_DETECTOR_BIN or (Path(KB_DIR) / "01_Operations/scripts/drift_detector.py")
+        if not drift_bin or not os.path.exists(drift_bin):
             return True
             
         print("🛡️ [Intent Guard] Checking for philosophical drift...")
         try:
             # 這裡調用外部 drift_detector.py
             # 由於它是一個獨立腳本，我們直接運行它
-            res = subprocess.run(["python3", DRIFT_DETECTOR_BIN], capture_output=True, text=True)
+            res = subprocess.run(["python3", drift_bin], capture_output=True, text=True)
             if res.returncode != 0:
                 print(f"🚨 [DRIFT DETECTED] {res.stdout.strip()}")
                 return False

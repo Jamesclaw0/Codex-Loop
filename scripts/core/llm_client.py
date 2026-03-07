@@ -11,7 +11,7 @@ class LLMClient:
 
     def __init__(self, bin_path=None, lock_file=None):
         # 優先使用傳入路徑，否則動態偵測絕對路徑
-        self.llm_bin = bin_path or shutil.which("codex") or "/Users/jameschen/.npm-global/bin/codex"
+        self.llm_bin = bin_path or shutil.which("codex") or "codex"
         self.lock_file = lock_file or "/tmp/codex_loop_v2.lock"
 
     def ask(self, prompt, payload):
