@@ -54,6 +54,7 @@ class GitManager:
                 files_out = _git_run(["diff", "--name-only", "--diff-filter=d"])
                 diff_text = _git_run(["diff"])
             elif scope == "base":
+                # 恢復舊邏輯：比較 base_ref 與 working tree (含 staged 與 unstaged) 以支援動態修補循環
                 files_out = _git_run(
                     ["diff", base_ref, "--name-only", "--diff-filter=d"]
                 )
@@ -75,7 +76,7 @@ class GitManager:
                                 + "\n".join([f"+{line}" for line in lines])
                                 + ("\n" if lines else "")
                             )
-                        except:
+                        except (UnicodeDecodeError, OSError):
                             pass
 
                 all_files_out = _git_run(
@@ -88,7 +89,8 @@ class GitManager:
                 ]
                 return code_files, diff_text
 
-            files = files_out.splitlines()
+            # 其他 scope (staged, unstaged, base) 的通用回傳邏輯
+            files = files_out.splitlines() if files_out else []
             return files, diff_text
 
         except subprocess.CalledProcessError as e:
