@@ -75,6 +75,9 @@ class CodexLoopV2:
         self.reporter = Reporter()
         self.workspace_manager = WorkspaceManager(self.git.project_root)
 
+        # 🛡️ Global Retry Circuit Breaker (Lvl 19)
+        self._check_global_retry_limit(repo_id)
+
         # 🔗 重複偵測器 (Repetition Guard) 與 Token 統計
         self.history_hashes = set()
         self.total_tokens = 0
@@ -107,6 +110,45 @@ class CodexLoopV2:
             # 預設模式 (Developer)
             self.max_strikes = 3
             self.persona_hint = "👤 MODE: DEVELOPER (Balanced cognitive-loop audit)."
+
+    def _check_global_retry_limit(self, repo_id):
+        """實作外部重試熔斷器 (Global Circuit Breaker)，防止 Agent 陷入死亡迴圈。"""
+        # Audit 單次報告模式不套用熔斷
+        if self.mode == "audit" or self.isolated:
+            return
+
+        lock_path = Path(f"/tmp/codex_loop_retry_{repo_id}.lock")
+        now = datetime.now().timestamp()
+
+        # 讀取現有紀錄
+        attempts = []
+        if lock_path.exists():
+            try:
+                # 內容格式：每行一個 timestamp
+                content = lock_path.read_text(encoding="utf-8")
+                attempts = [float(t) for t in content.splitlines() if t.strip()]
+            except Exception:
+                pass
+
+        # 濾除 30 分鐘 (1800 秒) 以前的紀綠
+        recent_attempts = [t for t in attempts if now - t < 1800]
+
+        # 寫入新紀錄
+        recent_attempts.append(now)
+        try:
+            lock_path.write_text(
+                "\n".join(str(t) for t in recent_attempts), encoding="utf-8"
+            )
+        except Exception:
+            pass
+
+        # N 次以上 (外部) 重試直接熔斷 (4次代表已經跑了 12 輪 internal strike)
+        if len(recent_attempts) > 4:
+            print(
+                "\n🚨 [CIRCUIT BREAKER] External agent retry limit exceeded (>4 times in 30 mins)."
+            )
+            print("🚨 外部 Agent 重試已達熔斷上限，請人類介入排查代碼邏輯死結。")
+            sys.exit(1)
 
     def _get_lessons(self, query=None):
         """獲取跨專案與全域教訓，並加入動態經驗回查 (Phase 1)。"""
@@ -350,6 +392,9 @@ class CodexLoopV2:
                 # 🛡️ Final Strike 模式：強制要求解決方案 (P16 Request: 3次沒過就要提供正確的code)
                 if strike == self.max_strikes and self.max_strikes > 1:
                     full_prompt += "\n⚠️ [CRITICAL] FINAL STRIKE: This is your last chance. You MUST provide a definitive, compile-ready patch (Unified Diff) for all remaining violations. No more advice. Fix everything NOW.\n"
+                    full_prompt += "\n[MANDATORY FORMATTING] DO NOT use Markdown wrappers (```json). DO NOT include explanatory text like '**Findings**'. OUTPUT ONLY VALID JSON DATA.\n"
+                    # 強制在 Strike 3 開啟自動套用，不讓 Agent 陷入解讀翻譯的迴圈
+                    self.apply_patch = True
 
                 print(f"🧠 Calling LLM for Cognitive Review (Strike {strike})...")
                 data, raw_output = self.llm.ask(full_prompt, diff_text)
