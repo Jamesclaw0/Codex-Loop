@@ -121,16 +121,26 @@ if __name__ == "__main__":
     parser.add_argument("--audit", help="Codex Audit Report content")
     parser.add_argument("--audit_file", help="Path to Codex Audit Report file")
     parser.add_argument("--path", default=".", help="Workspace path")
+    parser.add_argument("--format", choices=["json", "toon"], default="json", help="Output format for Agent/LLM consumption")
     args = parser.parse_args()
 
     diagnoser = CodexDiagnoser(args.path)
     report_content = ""
     if args.audit_file and os.path.exists(args.audit_file):
-        with open(args.audit_file, "r") as f:
-            report_content = f.read()
+        with open(args.audit_file, 'r') as f: report_content = f.read()
     elif args.audit:
         report_content = args.audit
 
     if report_content:
         result = diagnoser.run_waterfall(report_content)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        if args.format == "toon":
+            try:
+                from toon_adapter import ToonAdapter
+                print(ToonAdapter.json_to_toon(result))
+            except ImportError:
+                import sys
+                sys.path.append(os.path.dirname(__file__))
+                from toon_adapter import ToonAdapter
+                print(ToonAdapter.json_to_toon(result))
+        else:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
