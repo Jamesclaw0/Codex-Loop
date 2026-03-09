@@ -46,9 +46,11 @@ class CodexDiagnoser:
     def parse_audit_report(self, report_text: str) -> Dict[str, Any]:
         """從 Codex Audit Report 中提取關鍵缺陷並轉化為標準 Schema"""
         findings = []
+        # 進化版：匹配「1. **Severity**: 標題」格式，且直到下一個編號或結尾
         pattern = r"(\d+\.\s+\*\*(?:High|Medium|Low)\*\*.*?(?=\n\d+\.|\n\*\*|$))"
         matches = re.findall(pattern, report_text, re.DOTALL)
-        
+
+        # 備援：若無編號，匹配 **Severity** 開頭的段落
         if not matches:
             pattern = r"(\*\*(?:High|Medium|Low)\*\*.*?(?=\*\*|$))"
             matches = re.findall(pattern, report_text, re.DOTALL)
@@ -61,7 +63,9 @@ class CodexDiagnoser:
             # 嘗試提取第一個 Finding 的關鍵字作為 Signature
             first_finding = findings[0]
             signature = "Codex Audit Failure"
-            sig_match = re.search(r"\*\*(?:High|Medium|Low)\*\*:\s*(.*?)(?:\n|$)", first_finding)
+            sig_match = re.search(
+                r"\*\*(?:High|Medium|Low)\*\*:\s*(.*?)(?:\n|$)", first_finding
+            )
             if sig_match:
                 signature = sig_match.group(1).strip()[:100]
 
@@ -74,23 +78,24 @@ class CodexDiagnoser:
             return {
                 "signature": signature,
                 "context": "Codex-Loop Audit Phase",
-                "root_cause": f"Codex 偵測到 {len(findings)} 個關鍵缺陷：\n" + "\n".join(findings),
+                "root_cause": f"Codex 偵測到 {len(findings)} 個關鍵缺陷：\n"
+                + "\n".join(findings),
                 "fix_plan": [
                     "1. 仔細閱讀上述 Findings",
                     "2. 針對列出的檔案進行精確修復",
-                    "3. 重新執行 codex-loop"
+                    "3. 重新執行 codex-loop",
                 ],
                 "related_files": related_files,
-                "quality": "S"
+                "quality": "S",
             }
-        
+
         return {
             "signature": "Unknown Audit Failure",
             "context": "Codex-Loop",
             "root_cause": "無法從報告中提取明確 Finding",
             "fix_plan": ["請手動檢查報告內容"],
             "related_files": [],
-            "quality": "B"
+            "quality": "B",
         }
 
     def run_waterfall(self, description: str) -> Dict[str, Any]:
@@ -110,6 +115,7 @@ class CodexDiagnoser:
             "quality": "A",
         }
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Codex Diagnoser")
     parser.add_argument("--audit", help="Codex Audit Report content")
@@ -120,7 +126,8 @@ if __name__ == "__main__":
     diagnoser = CodexDiagnoser(args.path)
     report_content = ""
     if args.audit_file and os.path.exists(args.audit_file):
-        with open(args.audit_file, 'r') as f: report_content = f.read()
+        with open(args.audit_file, "r") as f:
+            report_content = f.read()
     elif args.audit:
         report_content = args.audit
 
